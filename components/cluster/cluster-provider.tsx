@@ -1,7 +1,7 @@
-import { createContext, ReactNode, useContext, useMemo, useState } from 'react'
-import { AppConfig } from '@/constants/app-config'
 import { Cluster } from '@/components/cluster/cluster'
 import { ClusterNetwork } from '@/components/cluster/cluster-network'
+import { AppConfig } from '@/constants/app-config'
+import { createContext, ReactNode, useContext, useMemo, useState } from 'react'
 
 export interface ClusterProviderContext {
   selectedCluster: Cluster
@@ -34,11 +34,11 @@ export function useCluster() {
 function getClusterUrlParam(cluster: Cluster): string {
   let suffix = ''
   switch (cluster.network) {
-    case ClusterNetwork.Devnet:
-      suffix = 'devnet'
-      break
     case ClusterNetwork.Mainnet:
       suffix = ''
+      break
+    case ClusterNetwork.Devnet:
+      suffix = 'devnet'
       break
     case ClusterNetwork.Testnet:
       suffix = 'testnet'

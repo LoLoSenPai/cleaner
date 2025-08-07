@@ -1,31 +1,42 @@
 import { Tabs } from 'expo-router'
 import React from 'react'
-import { UiIconSymbol } from '@/components/ui/ui-icon-symbol'
+import { Image } from 'react-native'
 
 export default function TabLayout() {
+  const iconStyle = { width: 28, height: 28 }
+
   return (
     <Tabs screenOptions={{ headerShown: false }}>
       {/* The index redirects to the account screen */}
       <Tabs.Screen name="index" options={{ tabBarItemStyle: { display: 'none' } }} />
+
       <Tabs.Screen
         name="account"
         options={{
           title: 'Account',
-          tabBarIcon: ({ color }) => <UiIconSymbol size={28} name="wallet.pass.fill" color={color} />,
+          tabBarIcon: () => (
+            <Image source={require('@/assets/images/account-icon.png')} style={iconStyle} />
+          ),
         }}
       />
+
       <Tabs.Screen
-        name="settings"
+        name="nfts"
         options={{
-          title: 'Settings',
-          tabBarIcon: ({ color }) => <UiIconSymbol size={28} name="gearshape.fill" color={color} />,
+          title: 'NFTs',
+          tabBarIcon: () => (
+            <Image source={require('@/assets/images/nft-icon.png')} style={iconStyle} />
+          ),
         }}
       />
+
       <Tabs.Screen
-        name="demo"
+        name="swap"
         options={{
-          title: 'Demo',
-          tabBarIcon: ({ color }) => <UiIconSymbol size={28} name="ladybug.fill" color={color} />,
+          title: 'Swap',
+          tabBarIcon: () => (
+            <Image source={require('@/assets/images/swap-icon.png')} style={iconStyle} />
+          ),
         }}
       />
     </Tabs>
