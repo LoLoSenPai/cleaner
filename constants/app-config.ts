@@ -3,7 +3,7 @@ import { ClusterNetwork } from '@/components/cluster/cluster-network'
 import { clusterApiUrl } from '@solana/web3.js'
 
 export class AppConfig {
-  static name = 'cleaner'
+  static name = 'Wallet Cleaner'
   static uri = 'https://example.com'
   static clusters: Cluster[] = [
     {

@@ -6,16 +6,17 @@ export default {
     slug: 'cleaner',
     version: '1.0.0',
     orientation: 'portrait',
-    icon: './assets/images/icon.png',
-    scheme: 'templateexpobasic',
+    icon: './assets/splash/icon.png',
+    scheme: 'cleaner',
     userInterfaceStyle: 'automatic',
     newArchEnabled: true,
+
     ios: {
       supportsTablet: true,
     },
     android: {
       adaptiveIcon: {
-        foregroundImage: './assets/images/adaptive-icon.png',
+        foregroundImage: './assets/splash/icon.png',
         backgroundColor: '#ffffff',
       },
       edgeToEdgeEnabled: true,
@@ -24,29 +25,28 @@ export default {
     web: {
       bundler: 'metro',
       output: 'static',
-      favicon: './assets/images/favicon.png',
+      favicon: './assets/splash/favicon/favicon.png',
     },
+
     plugins: [
       'expo-router',
       [
         'expo-splash-screen',
         {
-          backgroundColor: '#FFFFFF',
-          dark: {
-            backgroundColor: '#000000',
-            image: './assets/images/splash-icon.png',
-          },
-          image: './assets/images/splash-icon.png',
-          imageWidth: 200,
+          backgroundColor: '#000000',
+          image: './assets/splash/icon.png',
+          imageWidth: 300,
           resizeMode: 'contain',
         },
       ],
       'expo-web-browser',
       'expo-font',
     ],
+
     experiments: {
       typedRoutes: true,
     },
+
     extra: {
       HELIUS_API_KEY: process.env.HELIUS_API_KEY,
       router: {},

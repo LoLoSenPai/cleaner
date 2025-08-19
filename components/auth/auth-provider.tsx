@@ -1,4 +1,4 @@
-import { createContext, type PropsWithChildren, use, useMemo } from 'react'
+import { createContext, type PropsWithChildren, use, useMemo, useState } from 'react'
 import { useMobileWallet } from '@/components/solana/use-mobile-wallet'
 import { AppConfig } from '@/constants/app-config'
 import { Account, useAuthorization } from '@/components/solana/use-authorization'
@@ -15,16 +15,12 @@ const Context = createContext<AuthState>({} as AuthState)
 
 export function useAuth() {
   const value = use(Context)
-  if (!value) {
-    throw new Error('useAuth must be wrapped in a <AuthProvider />')
-  }
-
+  if (!value) throw new Error('useAuth must be wrapped in a <AuthProvider />')
   return value
 }
 
 function useSignInMutation() {
   const { signIn } = useMobileWallet()
-
   return useMutation({
     mutationFn: async () =>
       await signIn({
@@ -38,14 +34,23 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const { accounts, isLoading } = useAuthorization()
   const signInMutation = useSignInMutation()
 
+  const [sessionAccount, setSessionAccount] = useState<Account | null>(null)
+
   const value: AuthState = useMemo(
     () => ({
-      signIn: async () => await signInMutation.mutateAsync(),
-      signOut: async () => await disconnect(),
-      isAuthenticated: (accounts?.length ?? 0) > 0,
+      signIn: async () => {
+        const acc = await signInMutation.mutateAsync()
+        setSessionAccount(acc)
+        return acc
+      },
+      signOut: async () => {
+        setSessionAccount(null)
+        await disconnect()
+      },
+      isAuthenticated: !!sessionAccount || (accounts?.length ?? 0) > 0,
       isLoading: signInMutation.isPending || isLoading,
     }),
-    [accounts, disconnect, signInMutation, isLoading],
+    [accounts, disconnect, isLoading, sessionAccount, signInMutation],
   )
 
   return <Context value={value}>{children}</Context>

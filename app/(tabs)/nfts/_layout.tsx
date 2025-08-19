@@ -4,7 +4,11 @@ import React from 'react'
 
 export default function SettingsLayout() {
   return (
-    <Stack screenOptions={{ headerTitle: 'NFTs', headerRight: () => <WalletUiDropdown /> }}>
+    <Stack screenOptions={{
+      headerTitle: 'NFTs', headerTitleStyle: { color: '#fff' }, headerStyle: {
+        backgroundColor: '#0D0D0D',
+      }, headerRight: () => <WalletUiDropdown />
+    }}>
       <Stack.Screen name="index" />
     </Stack>
   )

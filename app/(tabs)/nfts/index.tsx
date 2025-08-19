@@ -5,7 +5,7 @@ import { useWalletUi } from '@/components/solana/use-wallet-ui'
 import { useHeliusAssets } from '@/hooks/use-helius-assets'
 import { parseHeliusNFTs } from '@/utils/parse-helius-assets'
 import NftList from '@/components/nfts/nft-list'
-import { SegmentedButtons } from 'react-native-paper'
+import Segmented from '@/components/ui/segmented'
 
 export default function NftsScreen() {
   const { account } = useWalletUi()
@@ -22,9 +22,7 @@ export default function NftsScreen() {
   const cnfts = all.filter((n) => n.isCompressed)
 
   const toggleSelect = (id: string) => {
-    setSelectedIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-    )
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
   }
 
   const currentList = selectedTab === 'nft' ? nfts : cnfts
@@ -32,17 +30,16 @@ export default function NftsScreen() {
 
   return (
     <AppView>
-      <SegmentedButtons
+      <Segmented
         value={selectedTab}
-        onValueChange={(v) => setSelectedTab(v as 'nft' | 'cnft')}
-        buttons={[
+        onChange={(v) => setSelectedTab(v as 'nft' | 'cnft')}
+        options={[
           { value: 'nft', label: 'NFTs' },
           { value: 'cnft', label: 'cNFTs' },
         ]}
-        style={{ marginBottom: 12 }}
       />
 
-      <AppText type="subtitle" style={{ marginBottom: 8 }}>
+      <AppText type="subtitle" style={{ marginVertical: 8 }}>
         {currentLabel}
       </AppText>
 
@@ -50,11 +47,7 @@ export default function NftsScreen() {
         <AppText>No {currentLabel} found.</AppText>
       ) : (
         <NftList
-          nfts={currentList.map(({ id, name, image }) => ({
-            id,
-            name,
-            image: image ?? '',
-          }))}
+          nfts={currentList.map(({ id, name, image }) => ({ id, name, image: image ?? '' }))}
           selectedIds={selectedIds}
           onSelect={toggleSelect}
         />

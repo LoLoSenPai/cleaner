@@ -10,7 +10,8 @@ import {
 } from '@solana/spl-token'
 import { AccountInfo, ComputeBudgetProgram, ParsedAccountData, PublicKey, TransactionMessage, VersionedTransaction } from '@solana/web3.js'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { ActivityIndicator } from 'react-native'
+import { LinearGradient } from 'expo-linear-gradient'
+import { ActivityIndicator, Pressable, Text, StyleSheet } from 'react-native'
 import { useGetTokenAccounts, useGetTokenAccountsInvalidate } from './use-get-token-accounts'
 
 const RENT_RECOVERED_PER_ACCOUNT = 0.00203928
@@ -124,10 +125,10 @@ export function AccountFeatureCleaner({ address }: { address: PublicKey }) {
             const signature = await signAndSendTransaction(tx, 0)
             await connection.confirmTransaction({ signature, ...latest }, 'confirmed')
 
-            console.log(`✅ Fermé ${closableAccounts.length} comptes, tx: ${signature}`)
+            console.log(`✅ Closed ${closableAccounts.length} accounts, tx: ${signature}`)
             await invalidate()
         } catch (err) {
-            console.warn('❌ Échec de la fermeture des comptes :', err)
+            console.warn('❌ Failed to close accounts:', err)
         } finally {
             setIsClosing(false)
         }
@@ -135,26 +136,69 @@ export function AccountFeatureCleaner({ address }: { address: PublicKey }) {
 
     return (
         <AppView style={{ gap: 16 }}>
-            <AppText type="subtitle">Wallet Cleaner</AppText>
+            <AppText type="subtitle" style={{ color: '#fff' }}>Wallet Cleaner</AppText>
 
             {isLoading || isRefetching || isSimulating ? (
                 <ActivityIndicator />
             ) : closableAccounts.length === 0 ? (
-                <AppText>No empty token accounts found ✅</AppText>
+                <AppText style={{ color: '#fff' }}>No empty token accounts found ✅</AppText>
             ) : (
                 <>
-                    <AppText>{closableAccounts.length} empty accounts can be closed</AppText>
-                    <AppText>Estimated reclaimed rent: ~{totalReclaim} SOL</AppText>
+                    <AppText style={{ color: '#fff' }}>
+                        {closableAccounts.length} empty accounts can be closed
+                    </AppText>
+                    <AppText style={{ color: '#fff' }}>
+                        Estimated reclaimed rent: ~{totalReclaim} SOL
+                    </AppText>
 
-                    <Button
-                        variant="filled"
-                        disabled={isClosing}
-                        onPress={handleClose}
+                    <LinearGradient
+                        colors={['#3B82F6', '#22D3EE']}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={styles.btnGradient}
                     >
-                        Close Empty Accounts
-                    </Button>
+                        <Pressable
+                            android_ripple={{ color: 'rgba(255,255,255,0.15)' }}
+                            style={[styles.btnInner, isClosing && styles.btnInnerDisabled]}
+                            onPress={handleClose}
+                            disabled={isClosing}
+                        >
+                            <Text style={styles.btnText}>
+                                {isClosing ? 'Closing...' : 'Close Empty Accounts'}
+                            </Text>
+                        </Pressable>
+                    </LinearGradient>
                 </>
             )}
         </AppView>
     )
 }
+
+const styles = StyleSheet.create({
+    btnGradient: {
+        marginTop: 8,
+        marginHorizontal: 16,
+        borderRadius: 28,
+        padding: 2,
+        shadowColor: '#22D3EE',
+        shadowOpacity: 0.45,
+        shadowRadius: 16,
+        shadowOffset: { width: 0, height: 6 },
+        elevation: 10,
+    },
+    btnInner: {
+        borderRadius: 26,
+        paddingVertical: 14,
+        alignItems: 'center',
+        backgroundColor: 'rgba(0,0,0,0.35)',
+    },
+    btnInnerDisabled: {
+        opacity: 0.6,
+    },
+    btnText: {
+        color: '#fff',
+        fontSize: 16,
+        fontWeight: '700',
+        letterSpacing: 0.3,
+    },
+})

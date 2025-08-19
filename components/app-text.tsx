@@ -1,24 +1,22 @@
-import { StyleSheet, Text, type TextProps } from 'react-native'
-import { useThemeColor } from '@/hooks/use-theme-color'
+import { StyleSheet, Text, type TextProps, useColorScheme } from 'react-native'
 
 export type AppTextProps = TextProps & {
-  lightColor?: string
-  darkColor?: string
   type?: 'default' | 'title' | 'defaultSemiBold' | 'subtitle' | 'link'
 }
 
-export function AppText({ style, lightColor, darkColor, type = 'default', ...rest }: AppTextProps) {
-  const color = useThemeColor({ light: lightColor, dark: darkColor }, 'text')
+export function AppText({ style, type = 'default', ...rest }: AppTextProps) {
+  const scheme = useColorScheme()
+  const color = scheme === 'dark' ? 'rgba(255,255,255,0.92)' : '#0C0F14'
 
   return (
     <Text
       style={[
         { color },
-        type === 'default' ? styles.default : undefined,
-        type === 'title' ? styles.title : undefined,
-        type === 'defaultSemiBold' ? styles.defaultSemiBold : undefined,
-        type === 'subtitle' ? styles.subtitle : undefined,
-        type === 'link' ? styles.link : undefined,
+        type === 'default' && styles.default,
+        type === 'title' && styles.title,
+        type === 'defaultSemiBold' && styles.defaultSemiBold,
+        type === 'subtitle' && styles.subtitle,
+        type === 'link' && styles.link,
         style,
       ]}
       {...rest}
@@ -27,27 +25,9 @@ export function AppText({ style, lightColor, darkColor, type = 'default', ...res
 }
 
 const styles = StyleSheet.create({
-  default: {
-    fontSize: 16,
-    lineHeight: 24,
-  },
-  defaultSemiBold: {
-    fontSize: 16,
-    lineHeight: 24,
-    fontWeight: '600',
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    lineHeight: 32,
-  },
-  subtitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
-  link: {
-    lineHeight: 30,
-    fontSize: 16,
-    color: '#0a7ea4',
-  },
+  default: { fontSize: 16, lineHeight: 24 },
+  defaultSemiBold: { fontSize: 16, lineHeight: 24, fontWeight: '600' },
+  title: { fontSize: 28, fontWeight: '700', lineHeight: 32 },
+  subtitle: { fontSize: 20, fontWeight: '700' },
+  link: { lineHeight: 30, fontSize: 16, color: '#4DA1FF' },
 })

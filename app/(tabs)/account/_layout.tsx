@@ -3,7 +3,11 @@ import { Stack } from 'expo-router'
 
 export default function Layout() {
   return (
-    <Stack screenOptions={{ headerTitle: 'Account', headerRight: () => <WalletUiDropdown /> }}>
+    <Stack screenOptions={{
+      headerTitle: 'Home', headerTitleStyle: { color: '#fff' }, headerStyle: {
+        backgroundColor: '#0D0D0D',
+      }, headerRight: () => <WalletUiDropdown />
+    }}>
       <Stack.Screen name="index" />
       <Stack.Screen name="airdrop" options={{ headerTitle: 'Airdrop', headerRight: () => null }} />
       <Stack.Screen name="send" options={{ headerTitle: 'Send', headerRight: () => null }} />

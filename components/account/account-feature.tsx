@@ -35,10 +35,10 @@ export function AccountFeature() {
             <AccountUiBalance address={account.publicKey} />
             <AppText style={{ opacity: 0.7 }}>{ellipsify(account.publicKey.toString(), 8)}</AppText>
           </AppView>
-          <AppView style={{ marginTop: 16, alignItems: 'center' }}>
+          <AppView style={{ marginTop: 8, alignItems: 'center' }}>
             <AccountUiButtons />
           </AppView>
-          <AppView style={{ marginTop: 16, alignItems: 'center' }}>
+          <AppView style={{ marginTop: 8, alignItems: 'center' }}>
             <AccountUiTokenAccounts address={account.publicKey} />
           </AppView>
         </ScrollView>

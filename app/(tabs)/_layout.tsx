@@ -1,42 +1,58 @@
 import { Tabs } from 'expo-router'
 import React from 'react'
 import { Image } from 'react-native'
+import IconHome from '@/components/icons/IconHome'
+import IconTokens from '@/components/icons/IconTokens'
+import IconNfts from '@/components/icons/IconNfts'
+import IconSwap from '@/components/icons/IconSwap'
 
 export default function TabLayout() {
-  const iconStyle = { width: 28, height: 28 }
+  const iconStyle = { width: 26, height: 26 }
 
   return (
-    <Tabs screenOptions={{ headerShown: false }}>
-      {/* The index redirects to the account screen */}
-      <Tabs.Screen name="index" options={{ tabBarItemStyle: { display: 'none' } }} />
+    <Tabs
+      screenOptions={{
+        headerShown: false, // supprime tous les headers blancs
+        tabBarStyle: {
+          backgroundColor: '#0B0D12', // fond dark
+          borderTopColor: 'rgba(255,255,255,0.1)',
+          borderTopWidth: 1,
+          height: 60,
+        },
+        tabBarActiveTintColor: '#4DA1FF',
+        tabBarInactiveTintColor: 'rgba(255,255,255,0.7)',
+        tabBarLabelStyle: { fontSize: 12, marginBottom: 4 },
+      }}
+    >
+      {/* cache réellement la route index */}
+      <Tabs.Screen name="index" options={{ href: null }} />
 
       <Tabs.Screen
         name="account"
         options={{
-          title: 'Account',
-          tabBarIcon: () => (
-            <Image source={require('@/assets/images/account-icon.png')} style={iconStyle} />
-          ),
+          title: 'Home',
+          tabBarIcon: ({ focused }) => <IconHome active={focused} />,
         }}
       />
-
+      <Tabs.Screen
+        name="tokens"
+        options={{
+          title: 'Tokens',
+          tabBarIcon: ({ focused }) => <IconTokens active={focused} />,
+        }}
+      />
       <Tabs.Screen
         name="nfts"
         options={{
           title: 'NFTs',
-          tabBarIcon: () => (
-            <Image source={require('@/assets/images/nft-icon.png')} style={iconStyle} />
-          ),
+          tabBarIcon: ({ focused }) => <IconNfts active={focused} />,
         }}
       />
-
       <Tabs.Screen
         name="swap"
         options={{
           title: 'Swap',
-          tabBarIcon: () => (
-            <Image source={require('@/assets/images/swap-icon.png')} style={iconStyle} />
-          ),
+          tabBarIcon: ({ focused }) => <IconSwap active={focused} />,
         }}
       />
     </Tabs>

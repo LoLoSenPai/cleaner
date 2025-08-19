@@ -46,7 +46,7 @@ export default function RootLayout() {
       <AppProviders>
         <AppSplashController />
         <RootNavigator />
-        <StatusBar style="auto" />
+        <StatusBar style="light" translucent />
       </AppProviders>
       <PortalHost />
     </View>
