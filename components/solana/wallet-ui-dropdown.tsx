@@ -9,13 +9,14 @@ import { AppText } from '@/components/app-text'
 import * as Dropdown from '@rn-primitives/dropdown-menu'
 import { WalletUiButtonConnect } from './wallet-ui-button-connect'
 import { useWalletUiTheme } from '@/components/solana/use-wallet-ui-theme'
+import { useAuth } from '@/components/auth/auth-provider'
 
 function useDropdownItems() {
   const { getExplorerUrl } = useCluster()
-  const { account, disconnect } = useWalletUi()
-  if (!account) {
-    return []
-  }
+  const { account } = useWalletUi()
+  const { signOut } = useAuth()
+  if (!account) return []
+
   return [
     {
       label: 'Copy Address',
@@ -27,7 +28,7 @@ function useDropdownItems() {
     },
     {
       label: 'Disconnect',
-      onPress: async () => await disconnect(),
+      onPress: async () => signOut(),
     },
   ]
 }
@@ -35,12 +36,9 @@ function useDropdownItems() {
 export function WalletUiDropdown() {
   const { account } = useWalletUi()
   const { backgroundColor, borderColor, textColor } = useWalletUiTheme()
-
   const items = useDropdownItems()
 
-  if (!account || !items.length) {
-    return <WalletUiButtonConnect />
-  }
+  if (!account || !items.length) return <WalletUiButtonConnect />
 
   return (
     <Dropdown.Root>
@@ -49,7 +47,7 @@ export function WalletUiDropdown() {
         <AppText>{ellipsify(account.publicKey.toString())}</AppText>
       </Dropdown.Trigger>
       <Dropdown.Portal>
-        <Dropdown.Overlay style={StyleSheet.absoluteFill}>
+        <Dropdown.Overlay style={StyleSheet.absoluteFillObject}>
           <Dropdown.Content style={{ ...styles.list, backgroundColor, borderColor }}>
             {items.map((item, index) => (
               <Fragment key={item.label}>

@@ -2,7 +2,6 @@ import { AppText } from '@/components/app-text'
 import { AppView } from '@/components/app-view'
 import { useConnection } from '@/components/solana/solana-provider'
 import { useWalletUi } from '@/components/solana/use-wallet-ui'
-import { Button } from '@react-navigation/elements'
 import {
     createCloseAccountInstruction,
     TOKEN_PROGRAM_ID,

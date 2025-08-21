@@ -1,15 +1,20 @@
 import { Cluster } from '@/components/cluster/cluster'
 import { ClusterNetwork } from '@/components/cluster/cluster-network'
 import { clusterApiUrl } from '@solana/web3.js'
+import { HELIUS_ENDPOINT } from '@/utils/env'
 
 export class AppConfig {
   static name = 'Wallet Cleaner'
   static uri = 'https://example.com'
+  public static readonly icon = '../assets/splash/icon.png'
+  static siws = {
+    statement: 'Sign in to Wallet Cleaner',
+  }
   static clusters: Cluster[] = [
     {
       id: 'solana:mainnet',
       name: 'Mainnet',
-      endpoint: 'https://mainnet.helius-rpc.com/?api-key=7f5873cc-6ba8-4366-9ab9-3f2ea38e5e29',
+      endpoint: HELIUS_ENDPOINT,
       network: ClusterNetwork.Mainnet,
     },
     {

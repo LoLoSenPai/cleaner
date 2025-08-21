@@ -21,11 +21,18 @@ export function useAuth() {
 
 function useSignInMutation() {
   const { signIn } = useMobileWallet()
+
   return useMutation({
-    mutationFn: async () =>
-      await signIn({
+    mutationFn: async () => {
+      const url = new URL(AppConfig.uri)
+      return await signIn({
+        domain: url.host,
         uri: AppConfig.uri,
-      }),
+        statement: AppConfig.siws.statement,
+        version: '1',
+        nonce: `${Date.now()}`,
+      })
+    },
   })
 }
 

@@ -1,22 +1,22 @@
+import { useCluster } from '@/components/cluster/cluster-provider'
+import { AppConfig } from '@/constants/app-config'
+import { ellipsify } from '@/utils/ellipsify'
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import { PublicKey, PublicKeyInitData } from '@solana/web3.js'
 import {
-  Account as AuthorizedAccount,
   AppIdentity,
   AuthorizationResult,
   AuthorizeAPI,
+  Account as AuthorizedAccount,
   AuthToken,
   Base64EncodedAddress,
   DeauthorizeAPI,
   SignInPayload,
 } from '@solana-mobile/mobile-wallet-adapter-protocol'
-import { toUint8Array } from 'js-base64'
+import { PublicKey, PublicKeyInitData } from '@solana/web3.js'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useCallback, useMemo } from 'react'
-import { useCluster } from '@/components/cluster/cluster-provider'
 import { WalletIcon } from '@wallet-standard/core'
-import { ellipsify } from '@/utils/ellipsify'
-import { AppConfig } from '@/constants/app-config'
+import { toUint8Array } from 'js-base64'
+import { useCallback, useMemo } from 'react'
 
 const identity: AppIdentity = { name: AppConfig.name, uri: AppConfig.uri }
 
@@ -90,7 +90,11 @@ function usePersistAuthorization() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (auth: WalletAuthorization | null): Promise<void> => {
-      await AsyncStorage.setItem(AUTHORIZATION_STORAGE_KEY, JSON.stringify(auth))
+      try {
+        await AsyncStorage.setItem(AUTHORIZATION_STORAGE_KEY, JSON.stringify(auth))
+      } catch {
+        // ignore on release, we don't want to crash on setItem
+      }
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey })
@@ -102,10 +106,37 @@ function useFetchAuthorization() {
   return useQuery({
     queryKey,
     queryFn: async (): Promise<WalletAuthorization | null> => {
-      const cacheFetchResult = await AsyncStorage.getItem(AUTHORIZATION_STORAGE_KEY)
+      try {
+        const raw = await AsyncStorage.getItem(AUTHORIZATION_STORAGE_KEY)
+        if (!raw) return null
 
-      // Return prior authorization, if found.
-      return cacheFetchResult ? JSON.parse(cacheFetchResult, cacheReviver) : null
+        const parsed = JSON.parse(raw) as any
+
+        if (!parsed?.selectedAccount?.address || !parsed?.authToken) return null
+
+        try {
+          const addr = parsed.selectedAccount.address as Base64EncodedAddress
+          const pkBytes = toUint8Array(addr)
+          parsed.selectedAccount.publicKey = new PublicKey(pkBytes)
+        } catch {
+          parsed.selectedAccount.publicKey = undefined
+        }
+
+        if (Array.isArray(parsed.accounts)) {
+          parsed.accounts = parsed.accounts.map((a: any) => {
+            try {
+              const pk = new PublicKey(toUint8Array(a.address as string))
+              return { ...a, publicKey: pk }
+            } catch {
+              return a
+            }
+          })
+        }
+
+        return parsed as WalletAuthorization
+      } catch {
+        return null
+      }
     },
   })
 }

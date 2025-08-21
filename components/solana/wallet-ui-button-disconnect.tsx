@@ -1,9 +1,9 @@
-import { useWalletUi } from '@/components/solana/use-wallet-ui'
 import { BaseButton } from '@/components/solana/base-button'
 import React from 'react'
+import { useAuth } from '@/components/auth/auth-provider'
 
 export function WalletUiButtonDisconnect({ label = 'Disconnect' }: { label?: string }) {
-  const { disconnect } = useWalletUi()
+  const { signOut } = useAuth()
 
-  return <BaseButton label={label} onPress={() => disconnect()} />
+  return <BaseButton label={label} onPress={() => signOut()} />
 }

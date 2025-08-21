@@ -30,6 +30,7 @@ export default {
 
     plugins: [
       'expo-router',
+      ['./plugins/with-svmwa-queries'],
       [
         'expo-splash-screen',
         {

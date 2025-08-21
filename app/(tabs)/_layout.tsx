@@ -1,18 +1,17 @@
 import { Tabs } from 'expo-router'
 import React from 'react'
-import { Image } from 'react-native'
 import IconHome from '@/components/icons/IconHome'
 import IconTokens from '@/components/icons/IconTokens'
 import IconNfts from '@/components/icons/IconNfts'
 import IconSwap from '@/components/icons/IconSwap'
 
 export default function TabLayout() {
-  const iconStyle = { width: 26, height: 26 }
+  // const iconStyle = { width: 26, height: 26 }
 
   return (
     <Tabs
       screenOptions={{
-        headerShown: false, // supprime tous les headers blancs
+        headerShown: false,
         tabBarStyle: {
           backgroundColor: '#0B0D12', // fond dark
           borderTopColor: 'rgba(255,255,255,0.1)',
@@ -24,7 +23,6 @@ export default function TabLayout() {
         tabBarLabelStyle: { fontSize: 12, marginBottom: 4 },
       }}
     >
-      {/* cache réellement la route index */}
       <Tabs.Screen name="index" options={{ href: null }} />
 
       <Tabs.Screen

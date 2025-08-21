@@ -1,21 +1,17 @@
-import { getRandomValues as expoCryptoGetRandomValues } from 'expo-crypto'
+// polyfill.js
+import { getRandomValues as expoGetRandomValues } from 'expo-crypto'
+import process from 'process'
+import 'react-native-get-random-values'
+
 import { Buffer } from 'buffer'
-
-global.Buffer = Buffer
-
-// getRandomValues polyfill
-class Crypto {
-  getRandomValues = expoCryptoGetRandomValues
+if (typeof globalThis.Buffer === 'undefined') {
+  globalThis.Buffer = Buffer
 }
 
-const webCrypto = typeof crypto !== 'undefined' ? crypto : new Crypto()
+if (typeof globalThis.crypto === 'undefined') {
+  globalThis.crypto = { getRandomValues: expoGetRandomValues }
+}
 
-;(() => {
-  if (typeof crypto === 'undefined') {
-    Object.defineProperty(window, 'crypto', {
-      configurable: true,
-      enumerable: true,
-      get: () => webCrypto,
-    })
-  }
-})()
+if (typeof globalThis.process === 'undefined') {
+  globalThis.process = process
+}
