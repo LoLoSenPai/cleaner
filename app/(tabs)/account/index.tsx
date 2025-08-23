@@ -1,7 +1,6 @@
 import React, { useState } from 'react'
 import { View, Pressable } from 'react-native'
 import { useRouter } from 'expo-router'
-import { LinearGradient } from 'expo-linear-gradient'
 import Svg, { Defs, LinearGradient as SvgGrad, Stop, Path, Rect } from 'react-native-svg'
 import { AppView } from '@/components/app-view'
 import { AppText } from '@/components/app-text'
@@ -10,6 +9,7 @@ import { CleanAllSheet } from '@/components/bottom-sheets/clean-all-sheet'
 import { useCleanerSummary } from '@/hooks/use-cleaner-summary'
 import { AccountUiBalance } from '@/components/account/account-ui-balance'
 import { useWalletUi } from '@/components/solana/use-wallet-ui'
+import { BaseButton } from '@/components/solana/base-button'
 
 export default function HomeScreen() {
   const { account } = useWalletUi()
@@ -63,18 +63,16 @@ export default function HomeScreen() {
       </View>
 
       {/* ---- Clean All CTA (gradient) ---- */}
-      <Pressable onPress={() => setSheetOpen(true)} style={{ marginTop: 8, borderRadius: 20, overflow: 'hidden' }}>
-        <LinearGradient
-          start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-          colors={['#00E0FF', '#4DA1FF', '#7C5CFF']}
-          style={{
-            height: 56, alignItems: 'center', justifyContent: 'center',
-            borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)',
-          }}
-        >
-          <AppText style={{ color: 'white', fontWeight: '700' }}>Clean All</AppText>
-        </LinearGradient>
-      </Pressable>
+      <View style={{ marginTop: 8, paddingHorizontal: 16 }}>
+        <BaseButton
+          variant="gradient"
+          size="lg"
+          fullWidth
+          iconName="wand.and.stars"
+          label="Clean All"
+          onPress={() => setSheetOpen(true)}
+        />
+      </View>
 
       <CleanAllSheet
         visible={sheetOpen}

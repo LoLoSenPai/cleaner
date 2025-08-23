@@ -1,18 +1,10 @@
 // SwapScreen.tsx
 import React, { useEffect, useState } from 'react'
-import {
-    View,
-    Text,
-    TextInput,
-    Button,
-    TouchableOpacity,
-    Image,
-    Modal,
-    FlatList,
-} from 'react-native'
+import { View, Text, TextInput, TouchableOpacity, Image, Modal, FlatList } from 'react-native'
 import { useTokenList } from '@/hooks/use-token-list'
 import { TokenInfo } from '@/types/tokens'
 import { useQuote } from '@/hooks/useQuote'
+import { BaseButton } from '@/components/solana/base-button'
 
 const TokenInputRow = ({
     label,
@@ -102,12 +94,6 @@ const SwapScreen = () => {
         setModalVisible(false)
     }
 
-    // useEffect(() => {
-    //     console.log('🔁 fromToken', fromToken?.symbol, fromToken?.decimals)
-    //     console.log('🔁 toToken', toToken?.symbol, toToken?.decimals)
-    //     console.log('💰 quote', quote)
-    // }, [fromToken, toToken, quote])
-
     return (
         <View style={{ padding: 16, backgroundColor: 'black', flex: 1 }}>
             <TokenInputRow
@@ -176,7 +162,17 @@ const SwapScreen = () => {
                 </View>
             </View>
 
-            <Button title="SWAP" disabled={!fromToken || !toToken || !amount} onPress={() => { }} />
+            <BaseButton
+                variant="gradient"
+                size="lg"
+                fullWidth
+                iconName="arrow.2.squarepath"
+                label="Swap"
+                disabled={!fromToken || !toToken || !amount}
+                onPress={() => {
+                    // TODO: call your execute-swap flow (Jupiter) here
+                }}
+            />
 
             {quote && fromToken && toToken && (
                 <View style={{ marginTop: 16, padding: 12, backgroundColor: '#1e1e1e', borderRadius: 12 }}>

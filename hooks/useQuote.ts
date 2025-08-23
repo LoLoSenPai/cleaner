@@ -1,40 +1,57 @@
 import { useEffect, useState } from 'react'
-import { SwapInfo, RouteStep, QuoteResponse } from '@/types/jupiter'
+import { QuoteResponse } from '@/types/jupiter'
 
 const JUP_LITE_QUOTE_URL = 'https://lite-api.jup.ag/swap/v1/quote'
 
 export function useQuote(
-    inputMint: string | undefined,
-    outputMint: string | undefined,
-    amount: string | undefined,
-    inputDecimals: number | undefined
+  inputMint: string | undefined,
+  outputMint: string | undefined,
+  amount: string | undefined,
+  inputDecimals: number | undefined,
 ) {
-    const [quote, setQuote] = useState<QuoteResponse | null>(null)
+  const [quote, setQuote] = useState<QuoteResponse | null>(null)
 
-    useEffect(() => {
-        const fetchQuote = async () => {
-            if (!inputMint || !outputMint || !amount || isNaN(Number(amount)) || inputDecimals == null) {
-                setQuote(null)
-                return
-            }
+  useEffect(() => {
+    let cancelled = false
 
-            const uiAmount = parseFloat(amount)
-            const baseAmount = Math.floor(uiAmount * 10 ** inputDecimals)
+    const fetchQuote = async () => {
+      if (!inputMint || !outputMint || !amount || isNaN(Number(amount)) || inputDecimals == null) {
+        setQuote(null)
+        return
+      }
 
-            const url = `${JUP_LITE_QUOTE_URL}?inputMint=${inputMint}&outputMint=${outputMint}&amount=${baseAmount}&slippage=1`
+      const uiAmount = Number(amount)
+      const baseAmount = Math.floor(uiAmount * 10 ** inputDecimals) // int
+      const url =
+        `${JUP_LITE_QUOTE_URL}` +
+        `?inputMint=${encodeURIComponent(inputMint)}` +
+        `&outputMint=${encodeURIComponent(outputMint)}` +
+        `&amount=${baseAmount}` +
+        `&slippage=1`
 
-            try {
-                const res = await fetch(url)
-                const json = await res.json()
-                setQuote(json)
-            } catch (err) {
-                console.error('Quote error:', err)
-                setQuote(null)
-            }
+      try {
+        const res = await fetch(url, { headers: { accept: 'application/json' } })
+        const text = await res.text()
+
+        // Try JSON; if it fails, keep raw text as { error }
+        let json: any
+        try {
+          json = JSON.parse(text)
+        } catch {
+          json = { error: text } // e.g. "Rate limited"
         }
 
-        fetchQuote()
-    }, [inputMint, outputMint, amount, inputDecimals])
+        if (!cancelled) setQuote(json)
+      } catch (err) {
+        if (!cancelled) setQuote({ error: String(err) } as any)
+      }
+    }
 
-    return quote
+    fetchQuote()
+    return () => {
+      cancelled = true
+    }
+  }, [inputMint, outputMint, amount, inputDecimals])
+
+  return quote
 }
