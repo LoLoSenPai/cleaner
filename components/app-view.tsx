@@ -2,11 +2,13 @@ import React from 'react'
 import { View, type ViewProps } from 'react-native'
 import { useThemeColor } from '@/hooks/use-theme-color'
 import { LinearGradient } from 'expo-linear-gradient'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 type AppViewProps = ViewProps & { disableBg?: boolean }
 
 export function AppView({ style, children, disableBg, ...otherProps }: AppViewProps) {
   const backgroundColor = useThemeColor({}, 'background')
+  const { bottom } = useSafeAreaInsets() 
 
   return (
     <View
@@ -16,7 +18,7 @@ export function AppView({ style, children, disableBg, ...otherProps }: AppViewPr
           position: 'relative',
           backgroundColor: disableBg ? 'transparent' : backgroundColor,
           gap: 8,
-          paddingBottom: 16,
+          paddingBottom: 16 + bottom, 
         },
         style,
       ]}

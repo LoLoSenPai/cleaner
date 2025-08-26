@@ -18,7 +18,11 @@ import { WalletIcon } from '@wallet-standard/core'
 import { toUint8Array } from 'js-base64'
 import { useCallback, useMemo } from 'react'
 
-const identity: AppIdentity = { name: AppConfig.name, uri: AppConfig.uri }
+const identity: AppIdentity = {
+  name: AppConfig.name,
+  uri: AppConfig.uri,
+  icon: AppConfig.icon,
+}
 
 export type Account = Readonly<{
   address: Base64EncodedAddress
@@ -34,12 +38,16 @@ type WalletAuthorization = Readonly<{
   selectedAccount: Account
 }>
 
+function getPublicKeyFromAddress(address: Base64EncodedAddress): PublicKey {
+  return new PublicKey(toUint8Array(address))
+}
+
 function getAccountFromAuthorizedAccount(account: AuthorizedAccount): Account {
   const publicKey = getPublicKeyFromAddress(account.address)
   return {
     address: account.address,
-    // TODO: Fix?
-    displayAddress: (account as unknown as { display_address: string }).display_address,
+    // some wallets expose display_address (non-typed)
+    displayAddress: (account as unknown as { display_address?: string })?.display_address,
     icon: account.icon,
     label: account.label ?? ellipsify(publicKey.toString(), 8),
     publicKey,
@@ -52,13 +60,10 @@ function getAuthorizationFromAuthorizationResult(
 ): WalletAuthorization {
   let selectedAccount: Account
   if (
-    // We have yet to select an account.
     previouslySelectedAccount == null ||
-    // The previously selected account is no longer in the set of authorized addresses.
     !authorizationResult.accounts.some(({ address }) => address === previouslySelectedAccount.address)
   ) {
-    const firstAccount = authorizationResult.accounts[0]
-    selectedAccount = getAccountFromAuthorizedAccount(firstAccount)
+    selectedAccount = getAccountFromAuthorizedAccount(authorizationResult.accounts[0])
   } else {
     selectedAccount = previouslySelectedAccount
   }
@@ -69,31 +74,25 @@ function getAuthorizationFromAuthorizationResult(
   }
 }
 
-function getPublicKeyFromAddress(address: Base64EncodedAddress): PublicKey {
-  const publicKeyByteArray = toUint8Array(address)
-  return new PublicKey(publicKeyByteArray)
-}
-
+/** Reviver to restore PublicKeys when parsing JSON */
 function cacheReviver(key: string, value: any) {
   if (key === 'publicKey') {
-    return new PublicKey(value as PublicKeyInitData) // the PublicKeyInitData should match the actual data structure stored in AsyncStorage
-  } else {
-    return value
+    return new PublicKey(value as PublicKeyInitData)
   }
+  return value
 }
 
 const AUTHORIZATION_STORAGE_KEY = 'authorization-cache'
-
 const queryKey = ['wallet-authorization']
 
 function usePersistAuthorization() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (auth: WalletAuthorization | null): Promise<void> => {
+    mutationFn: async (auth: WalletAuthorization | null) => {
       try {
         await AsyncStorage.setItem(AUTHORIZATION_STORAGE_KEY, JSON.stringify(auth))
       } catch {
-        // ignore on release, we don't want to crash on setItem
+        // do not crash in production
       }
     },
     onSuccess: async () => {
@@ -110,30 +109,12 @@ function useFetchAuthorization() {
         const raw = await AsyncStorage.getItem(AUTHORIZATION_STORAGE_KEY)
         if (!raw) return null
 
-        const parsed = JSON.parse(raw) as any
+        // ⚠️ use the reviver to reconstitute all PublicKeys
+        const parsed = JSON.parse(raw, cacheReviver) as WalletAuthorization
 
+        // Minimal validation
         if (!parsed?.selectedAccount?.address || !parsed?.authToken) return null
-
-        try {
-          const addr = parsed.selectedAccount.address as Base64EncodedAddress
-          const pkBytes = toUint8Array(addr)
-          parsed.selectedAccount.publicKey = new PublicKey(pkBytes)
-        } catch {
-          parsed.selectedAccount.publicKey = undefined
-        }
-
-        if (Array.isArray(parsed.accounts)) {
-          parsed.accounts = parsed.accounts.map((a: any) => {
-            try {
-              const pk = new PublicKey(toUint8Array(a.address as string))
-              return { ...a, publicKey: pk }
-            } catch {
-              return a
-            }
-          })
-        }
-
-        return parsed as WalletAuthorization
+        return parsed
       } catch {
         return null
       }
@@ -154,16 +135,17 @@ export function useAuthorization() {
 
   const handleAuthorizationResult = useCallback(
     async (authorizationResult: AuthorizationResult): Promise<WalletAuthorization> => {
-      const nextAuthorization = getAuthorizationFromAuthorizationResult(
+      const next = getAuthorizationFromAuthorizationResult(
         authorizationResult,
         fetchQuery.data?.selectedAccount,
       )
-      await persistMutation.mutateAsync(nextAuthorization)
-      return nextAuthorization
+      await persistMutation.mutateAsync(next)
+      return next
     },
     [fetchQuery.data?.selectedAccount, persistMutation],
   )
 
+  /** Authorize the session */
   const authorizeSession = useCallback(
     async (wallet: AuthorizeAPI) => {
       const authorizationResult = await wallet.authorize({
@@ -176,6 +158,7 @@ export function useAuthorization() {
     [fetchQuery.data?.authToken, handleAuthorizationResult, selectedCluster.id],
   )
 
+  /** SIWS (Sign-In With Solana) — combine authorize + sign message */
   const authorizeSessionWithSignIn = useCallback(
     async (wallet: AuthorizeAPI, signInPayload: SignInPayload) => {
       const authorizationResult = await wallet.authorize({
@@ -189,17 +172,17 @@ export function useAuthorization() {
     [fetchQuery.data?.authToken, handleAuthorizationResult, selectedCluster.id],
   )
 
+  /** Deauthorize the current session (invalidates the token on the wallet side) */
   const deauthorizeSession = useCallback(
     async (wallet: DeauthorizeAPI) => {
-      if (fetchQuery.data?.authToken == null) {
-        return
-      }
+      if (!fetchQuery.data?.authToken) return
       await wallet.deauthorize({ auth_token: fetchQuery.data.authToken })
       await persistMutation.mutateAsync(null)
     },
     [fetchQuery.data?.authToken, persistMutation],
   )
 
+  /** “Disconnect” UI — clean local cache + invalidate the query */
   const deauthorizeSessions = useCallback(async () => {
     await invalidateAuthorizations()
     await persistMutation.mutateAsync(null)

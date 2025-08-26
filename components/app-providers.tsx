@@ -5,17 +5,45 @@ import { ClusterProvider } from './cluster/cluster-provider'
 import { SolanaProvider } from '@/components/solana/solana-provider'
 import { AppTheme } from '@/components/app-theme'
 import { AuthProvider } from '@/components/auth/auth-provider'
-import { Provider as PaperProvider, MD3DarkTheme, MD3LightTheme } from 'react-native-paper'
+import { Provider as PaperProvider, MD3DarkTheme, MD3LightTheme, configureFonts } from 'react-native-paper'
 import { useColorScheme } from 'react-native'
 
-const queryClient = new QueryClient()
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      retry: 1,
+    },
+  },
+})
 
 function PaperThemeBridge({ children }: PropsWithChildren) {
   const scheme = useColorScheme()
   const isDark = scheme === 'dark'
 
+  const paperFonts = configureFonts({
+    config: {
+      displayLarge: { fontFamily: 'GSC-Bold' },
+      displayMedium: { fontFamily: 'GSC-Bold' },
+      displaySmall: { fontFamily: 'GSC-Bold' },
+      headlineLarge: { fontFamily: 'GSC-SemiBold' },
+      headlineMedium: { fontFamily: 'GSC-SemiBold' },
+      headlineSmall: { fontFamily: 'GSC-SemiBold' },
+      titleLarge: { fontFamily: 'GSC-SemiBold' },
+      titleMedium: { fontFamily: 'GSC-SemiBold' },
+      titleSmall: { fontFamily: 'GSC-SemiBold' },
+      labelLarge: { fontFamily: 'GSC-Medium' },
+      labelMedium: { fontFamily: 'GSC-Medium' },
+      labelSmall: { fontFamily: 'GSC-Medium' },
+      bodyLarge: { fontFamily: 'GSC-Regular' },
+      bodyMedium: { fontFamily: 'GSC-Regular' },
+      bodySmall: { fontFamily: 'GSC-Regular' },
+    },
+  })
+
   const dark = {
     ...MD3DarkTheme,
+    fonts: paperFonts,
     colors: {
       ...MD3DarkTheme.colors,
       background: '#0B0D12',
@@ -30,6 +58,7 @@ function PaperThemeBridge({ children }: PropsWithChildren) {
 
   const light = {
     ...MD3LightTheme,
+    fonts: paperFonts,
     colors: {
       ...MD3LightTheme.colors,
       background: '#F7F8FA',

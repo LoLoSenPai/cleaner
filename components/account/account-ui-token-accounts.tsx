@@ -69,7 +69,7 @@ export function AccountUiTokenAccounts({ address, selectable = false, selected =
             selected.some(s => s.mint === token.mint && (s.tokenAccount ? s.tokenAccount === tokenAccount : true))
 
           const Row = (
-            <AppView
+            <View
               style={{
                 position: 'relative',
                 flexDirection: 'row',
@@ -150,7 +150,7 @@ export function AccountUiTokenAccounts({ address, selectable = false, selected =
                   </AppText>
                 )}
               </View>
-            </AppView>
+            </View>
           )
 
           return (

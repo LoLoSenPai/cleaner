@@ -7,6 +7,7 @@ export function AppPage({ children, ...props }: PropsWithChildren<ViewProps>) {
   return (
     <AppView style={{ flex: 1 }} {...props}>
       <SafeAreaView
+        edges={['top']}
         style={{
           flex: 1,
           gap: 16,

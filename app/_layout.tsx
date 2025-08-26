@@ -10,6 +10,8 @@ import { StatusBar } from 'expo-status-bar'
 import { useCallback, useEffect } from 'react'
 import { View } from 'react-native'
 import 'react-native-reanimated'
+import { SafeAreaProvider } from 'react-native-safe-area-context'
+import * as NavigationBar from 'expo-navigation-bar'
 
 SplashScreen.preventAutoHideAsync()
 
@@ -18,8 +20,17 @@ export default function RootLayout() {
     console.log(`Track ${pathname}`, { params })
   })
   const [loaded] = useFonts({
-    SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
+    // SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
+    'GSC-Regular': require('../assets/fonts/GoogleSansCode-Regular.ttf'),
+    'GSC-Medium': require('../assets/fonts/GoogleSansCode-Medium.ttf'),
+    'GSC-SemiBold': require('../assets/fonts/GoogleSansCode-SemiBold.ttf'),
+    'GSC-Bold': require('../assets/fonts/GoogleSansCode-Bold.ttf'),
+    'GSC-Italic': require('../assets/fonts/GoogleSansCode-Italic.ttf'),
   })
+
+  useEffect(() => {
+    NavigationBar.setBehaviorAsync('overlay-swipe').catch(() => { })
+  }, [])
 
   const onLayoutRootView = useCallback(async () => {
     console.log('onLayoutRootView')
@@ -33,12 +44,14 @@ export default function RootLayout() {
 
   return (
     <View style={{ flex: 1 }} onLayout={onLayoutRootView}>
-      <AppProviders>
-        <AppSplashController />
-        <RootNavigator />
-        <StatusBar style="light" translucent />
-      </AppProviders>
-      <PortalHost />
+      <SafeAreaProvider>
+        <AppProviders>
+          <AppSplashController />
+          <RootNavigator />
+          <StatusBar style="light" translucent />
+        </AppProviders>
+        <PortalHost />
+      </SafeAreaProvider>
     </View>
   )
 }

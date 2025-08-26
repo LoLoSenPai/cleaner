@@ -92,7 +92,7 @@ export function AccountFeature() {
               <AppText style={{ opacity: 0.7 }}>{ellipsify(account.publicKey.toString(), 8)}</AppText>
             </AppView>
 
-            <AppView style={{ marginTop: 8, alignItems: 'center' }}>
+            <AppView style={{ marginTop: 0, alignItems: 'center' }}>
               <AccountUiButtons />
             </AppView>
 
