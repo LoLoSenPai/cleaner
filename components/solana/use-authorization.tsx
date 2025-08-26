@@ -1,3 +1,4 @@
+// components/solana/use-authorization.tsx
 import { useCluster } from '@/components/cluster/cluster-provider'
 import { AppConfig } from '@/constants/app-config'
 import { ellipsify } from '@/utils/ellipsify'

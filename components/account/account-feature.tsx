@@ -15,12 +15,14 @@ import { WalletUiButtonConnect } from '@/components/solana/wallet-ui-button-conn
 import { BaseButton } from '@/components/solana/base-button'
 import { useBurnTokens } from '@/hooks/use-burn-tokens'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { useSnsDomains } from '@/hooks/use-sns-domains'
 
 type SelectItem = { mint: string; tokenAccount?: string }
 
 export function AccountFeature() {
   const { account } = useWalletUi()
   const [refreshing, setRefreshing] = useState(false)
+  const { data: sns } = useSnsDomains(account?.publicKey)
 
   const invalidateBalance = useGetBalanceInvalidate({ address: account?.publicKey as PublicKey })
   const invalidateTokenAccounts = useGetTokenAccountsInvalidate({ address: account?.publicKey as PublicKey })
@@ -89,7 +91,26 @@ export function AccountFeature() {
           >
             <AppView style={{ alignItems: 'center', gap: 4 }}>
               <AccountUiBalance address={account.publicKey} />
-              <AppText style={{ opacity: 0.7 }}>{ellipsify(account.publicKey.toString(), 8)}</AppText>
+
+              {sns?.domains?.length ? (
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
+                  {sns.domains.map((d, i) => (
+                    <View
+                      key={d}
+                      style={{
+                        paddingHorizontal: 8,
+                        paddingVertical: 2,
+                        borderRadius: 999,
+                        backgroundColor: i === 0 ? 'rgba(77,161,255,0.18)' : 'rgba(255,255,255,0.08)',
+                        borderWidth: 1,
+                        borderColor: i === 0 ? 'rgba(77,161,255,0.35)' : 'rgba(255,255,255,0.15)',
+                      }}
+                    >
+                      <AppText style={{ fontSize: 12, color: '#fff' }}>{d}.sol</AppText>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
             </AppView>
 
             <AppView style={{ marginTop: 0, alignItems: 'center' }}>

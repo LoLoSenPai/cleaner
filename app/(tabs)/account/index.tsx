@@ -41,7 +41,7 @@ export default function HomeScreen() {
         <ActionTile
           title="Burn Tokens"
           subtitle="Select tokens"
-          onPress={() => router.push("(tabs)/tokens" as any)}
+          onPress={() => router.push("/(tabs)/tokens")}
           Icon={() => <IconFlame />}
         />
       </View>

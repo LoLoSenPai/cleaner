@@ -20,7 +20,6 @@ export default function RootLayout() {
     console.log(`Track ${pathname}`, { params })
   })
   const [loaded] = useFonts({
-    // SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
     'GSC-Regular': require('../assets/fonts/GoogleSansCode-Regular.ttf'),
     'GSC-Medium': require('../assets/fonts/GoogleSansCode-Medium.ttf'),
     'GSC-SemiBold': require('../assets/fonts/GoogleSansCode-SemiBold.ttf'),
@@ -60,7 +59,7 @@ function RootNavigator() {
   const { isAuthenticated } = useAuth()
 
   useEffect(() => {
-    router.replace(isAuthenticated ? '/' : '/sign-in')
+    router.replace(isAuthenticated ? '/(tabs)' : '/sign-in')
   }, [isAuthenticated])
 
   return (

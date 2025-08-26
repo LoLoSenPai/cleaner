@@ -58,10 +58,7 @@ export default function SignIn() {
                   style={[styles.btnInner, isLoading && { opacity: 0.7 }]}
                   onPress={async () => {
                     try {
-                      const acc = await signIn();
-                      if (acc?.publicKey) {
-                        router.replace('/');
-                      }
+                      await signIn();
                     } catch (e) {
                       console.log('[CONNECT] error:', e);
                     }
