@@ -18,7 +18,7 @@ export function AppView({ style, children, disableBg, ...otherProps }: AppViewPr
           position: 'relative',
           backgroundColor: disableBg ? 'transparent' : backgroundColor,
           gap: 8,
-          paddingBottom: 16 + bottom, 
+          paddingBottom: 0 + bottom, 
         },
         style,
       ]}

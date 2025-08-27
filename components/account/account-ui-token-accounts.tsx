@@ -25,7 +25,7 @@ export function AccountUiTokenAccounts({ address, selectable = false, selected =
 
   // parseHeliusTokens() is your helper; we augment the type locally to include optional tokenAccount
   const sortedTokens = useMemo(() => {
-    const tokens = data ? (parseHeliusTokens(data.tokens) as Array<{
+    const tokens = data ? (parseHeliusTokens(data.tokens) as {
       mint: string
       image?: string
       symbol?: string
@@ -33,7 +33,7 @@ export function AccountUiTokenAccounts({ address, selectable = false, selected =
       amount: number
       usdValue?: number
       tokenAccount?: string
-    }>) : []
+    }[]) : []
     return [...tokens].sort((a, b) => (b.usdValue ?? 0) - (a.usdValue ?? 0))
   }, [data])
 

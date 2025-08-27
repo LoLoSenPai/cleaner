@@ -1,8 +1,8 @@
-import { createContext, type PropsWithChildren, use, useMemo, useState } from 'react'
-import { useMobileWallet } from '@/components/solana/use-mobile-wallet'
-import { AppConfig } from '@/constants/app-config'
+// components/auth/auth-provider.tsx
 import { Account, useAuthorization } from '@/components/solana/use-authorization'
-import { useMutation } from '@tanstack/react-query'
+import { AppConfig } from '@/constants/app-config'
+import { transact } from '@solana-mobile/mobile-wallet-adapter-protocol'
+import { createContext, PropsWithChildren, use, useCallback, useMemo, useState } from 'react'
 
 export interface AuthState {
   isAuthenticated: boolean
@@ -19,45 +19,62 @@ export function useAuth() {
   return value
 }
 
-function useSignInMutation() {
-  const { signIn } = useMobileWallet()
+export function AuthProvider({ children }: PropsWithChildren) {
+  const {
+    accounts,
+    authToken,
+    isLoading: authLoading,
+    authorizeSessionWithSignIn,
+    deauthorizeSession,
+    deauthorizeSessions,
+  } = useAuthorization()
 
-  return useMutation({
-    mutationFn: async () => {
+  const [sessionAccount, setSessionAccount] = useState<Account | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  const signIn = useCallback(async (): Promise<Account> => {
+    setBusy(true)
+    try {
       const url = new URL(AppConfig.uri)
-      return await signIn({
+      const payload = {
         domain: url.host,
-        uri: AppConfig.uri,
         statement: AppConfig.siws.statement,
         version: '1',
         nonce: `${Date.now()}`,
+      }
+
+      const acc = await transact(async (wallet) => {
+        if (authToken) {
+          try {
+            await deauthorizeSession(wallet)
+          } catch {
+          }
+        }
+        await deauthorizeSessions()
+
+        return await authorizeSessionWithSignIn(wallet, payload)
       })
-    },
-  })
-}
 
-export function AuthProvider({ children }: PropsWithChildren) {
-  const { disconnect } = useMobileWallet()
-  const { accounts, isLoading } = useAuthorization()
-  const signInMutation = useSignInMutation()
+      setSessionAccount(acc)
+      return acc
+    } finally {
+      setBusy(false)
+    }
+  }, [authToken, authorizeSessionWithSignIn, deauthorizeSession, deauthorizeSessions])
 
-  const [sessionAccount, setSessionAccount] = useState<Account | null>(null)
+  const signOut = useCallback(async () => {
+    setSessionAccount(null)
+    await deauthorizeSessions()
+  }, [deauthorizeSessions])
 
   const value: AuthState = useMemo(
     () => ({
-      signIn: async () => {
-        const acc = await signInMutation.mutateAsync()
-        setSessionAccount(acc)
-        return acc
-      },
-      signOut: async () => {
-        setSessionAccount(null)
-        await disconnect()
-      },
+      signIn,
+      signOut,
       isAuthenticated: !!sessionAccount || (accounts?.length ?? 0) > 0,
-      isLoading: signInMutation.isPending || isLoading,
+      isLoading: busy || authLoading,
     }),
-    [accounts, disconnect, isLoading, sessionAccount, signInMutation],
+    [signIn, signOut, sessionAccount, accounts, busy, authLoading],
   )
 
   return <Context value={value}>{children}</Context>

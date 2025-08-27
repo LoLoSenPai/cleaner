@@ -1,12 +1,11 @@
 import { useWalletUi } from '@/components/solana/use-wallet-ui'
 import { AppText } from '@/components/app-text'
-import { ellipsify } from '@/utils/ellipsify'
 import { AppView } from '@/components/app-view'
 import { AppPage } from '@/components/app-page'
 import { AccountUiButtons } from './account-ui-buttons'
 import { AccountUiBalance } from '@/components/account/account-ui-balance'
 import { AccountUiTokenAccounts } from '@/components/account/account-ui-token-accounts'
-import { RefreshControl, ScrollView, Alert, View } from 'react-native'
+import { RefreshControl, ScrollView, View } from 'react-native'
 import { useCallback, useState } from 'react'
 import { useGetBalanceInvalidate } from '@/components/account/use-get-balance'
 import { PublicKey } from '@solana/web3.js'
@@ -16,6 +15,7 @@ import { BaseButton } from '@/components/solana/base-button'
 import { useBurnTokens } from '@/hooks/use-burn-tokens'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useSnsDomains } from '@/hooks/use-sns-domains'
+import ConfirmDialog from '@/components/ui/confirm-dialog';
 
 type SelectItem = { mint: string; tokenAccount?: string }
 
@@ -23,6 +23,7 @@ export function AccountFeature() {
   const { account } = useWalletUi()
   const [refreshing, setRefreshing] = useState(false)
   const { data: sns } = useSnsDomains(account?.publicKey)
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const invalidateBalance = useGetBalanceInvalidate({ address: account?.publicKey as PublicKey })
   const invalidateTokenAccounts = useGetTokenAccountsInvalidate({ address: account?.publicKey as PublicKey })
@@ -50,36 +51,28 @@ export function AccountFeature() {
   const [burnBusy, setBurnBusy] = useState(false)
 
   const onBurnSelectedTokens = useCallback(() => {
-    if (!selected.length || !account?.publicKey) return
-    Alert.alert(
-      'Confirm burn',
-      `Burn ${selected.length} token account(s)? Entire balances will be burned.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Burn',
-          style: 'destructive',
-          onPress: async () => {
-            setBurnBusy(true)
-            try {
-              await burnTokens(
-                selected.map(({ mint, tokenAccount }) => ({
-                  mint: new PublicKey(mint),
-                  // if we have the exact token account, pass it; otherwise hook resolves ATA
-                  tokenAccount: tokenAccount ? new PublicKey(tokenAccount) : undefined,
-                  amountBase: 'ALL' as const,
-                })),
-              )
-              setSelected([])
-              await Promise.all([invalidateBalance(), invalidateTokenAccounts()])
-            } finally {
-              setBurnBusy(false)
-            }
-          },
-        },
-      ],
-    )
-  }, [selected, account?.publicKey, burnTokens, invalidateBalance, invalidateTokenAccounts])
+    if (!selected.length || !account?.publicKey) return;
+    setConfirmOpen(true);
+  }, [selected.length, account?.publicKey]);
+
+  const doBurn = useCallback(async () => {
+    if (!selected.length || !account?.publicKey) return;
+    setConfirmOpen(false);
+    setBurnBusy(true);
+    try {
+      await burnTokens(
+        selected.map(({ mint, tokenAccount }) => ({
+          mint: new PublicKey(mint),
+          tokenAccount: tokenAccount ? new PublicKey(tokenAccount) : undefined,
+          amountBase: 'ALL' as const,
+        })),
+      );
+      setSelected([]);
+      await Promise.all([invalidateBalance(), invalidateTokenAccounts()]);
+    } finally {
+      setBurnBusy(false);
+    }
+  }, [selected, account?.publicKey, burnTokens, invalidateBalance, invalidateTokenAccounts]);
 
   return (
     <AppPage>
@@ -89,7 +82,7 @@ export function AccountFeature() {
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => onRefresh()} />}
             contentContainerStyle={{ paddingBottom: (selectedCount > 0 ? 56 + 16 : 0) + insets.bottom }}
           >
-            <AppView style={{ alignItems: 'center', gap: 4 }}>
+            <AppView disableBg style={{ alignItems: 'center', gap: 4 }}>
               <AccountUiBalance address={account.publicKey} />
 
               {sns?.domains?.length ? (
@@ -113,11 +106,11 @@ export function AccountFeature() {
               ) : null}
             </AppView>
 
-            <AppView style={{ marginTop: 0, alignItems: 'center' }}>
+            <AppView disableBg style={{ marginTop: 0, alignItems: 'center' }}>
               <AccountUiButtons />
             </AppView>
 
-            <AppView style={{ marginTop: 8, alignItems: 'center', gap: 8, width: '100%' }}>
+            <AppView disableBg style={{ marginTop: 0, alignItems: 'center', gap: 8, width: '100%' }}>
               {/* Token list, selectable */}
               <AccountUiTokenAccounts
                 address={account.publicKey}
@@ -127,6 +120,16 @@ export function AccountFeature() {
               />
             </AppView>
           </ScrollView>
+
+          <ConfirmDialog
+            visible={confirmOpen}
+            title="Confirm burn"
+            message={`Burn ${selected.length} token account(s)? Entire balances will be burned.`}
+            cancelText="Cancel"
+            confirmText="Burn"
+            onCancel={() => setConfirmOpen(false)}
+            onConfirm={doBurn}
+          />
 
           {selectedCount > 0 && (
             <View

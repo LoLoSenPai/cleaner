@@ -73,7 +73,11 @@ export default function NftsScreen() {
       <AppView
         style={{
           flex: 1,
-          paddingBottom: (!isCnftTab && selectedCount > 0 ? 56 + 16 : 0) + insets.bottom,
+          paddingTop: 0,
+          paddingHorizontal: 16,
+          paddingBottom: (!isCnftTab && selectedCount > 0
+            ? 56 + 16 + insets.bottom
+            : 0),
         }}
       >
         <Segmented
@@ -88,10 +92,10 @@ export default function NftsScreen() {
           ]}
         />
 
-        <AppView style={{ marginTop: 8, marginBottom: 12, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        {/* <AppView style={{ marginTop: 8, marginBottom: 12, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           <AppText type="subtitle">{currentLabel}</AppText>
           {isCnftTab && <AppText style={{ opacity: 0.7 }}>Burn not supported for cNFTs</AppText>}
-        </AppView>
+        </AppView> */}
 
         {currentList.length === 0 ? (
           <AppText>No {currentLabel} found.</AppText>

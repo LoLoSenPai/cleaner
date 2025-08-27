@@ -1,9 +1,9 @@
-import React, { ComponentProps } from 'react'
 import { AppText } from '@/components/app-text'
-import { StyleSheet, TouchableOpacity, ViewStyle } from 'react-native'
-import { UiIconSymbol } from '@/components/ui/ui-icon-symbol'
 import { useWalletUiTheme } from '@/components/solana/use-wallet-ui-theme'
+import { UiIconSymbol } from '@/components/ui/ui-icon-symbol'
 import { LinearGradient } from 'expo-linear-gradient'
+import React, { ComponentProps } from 'react'
+import { StyleSheet, TouchableOpacity, ViewStyle } from 'react-native'
 
 type IconName = ComponentProps<typeof UiIconSymbol>['name']
 type IconColor = ComponentProps<typeof UiIconSymbol>['color']
@@ -32,6 +32,18 @@ export function BaseButton({
   fullWidth = false,
 }: Props) {
   const { backgroundColor, borderColor, textColor } = useWalletUiTheme()
+  const padStyle = size === 'lg' ? styles.padLg : styles.padMd
+
+  const Label = ({ color }: { color: string }) => (
+    <AppText
+      style={[styles.labelBase, { color }]}
+      numberOfLines={1}
+      ellipsizeMode="tail"
+      allowFontScaling={false}
+    >
+      {label}
+    </AppText>
+  )
 
   if (variant === 'gradient') {
     return (
@@ -49,17 +61,13 @@ export function BaseButton({
         <TouchableOpacity
           disabled={disabled}
           onPress={disabled ? undefined : onPress}
-          style={[
-            styles.gradInner,
-            size === 'lg' ? styles.padLg : styles.padMd,
-            { flexDirection: 'row', alignItems: 'center', gap: 8 },
-          ]}
+          style={[styles.row, styles.gradInner, padStyle]}
           accessibilityRole="button"
           accessibilityState={{ disabled }}
           hitSlop={{ top: 6, bottom: 6, left: 8, right: 8 }}
         >
           <UiIconSymbol name={iconName} color={iconColor ?? '#fff'} />
-          <AppText style={styles.gradText}>{label}</AppText>
+          <Label color="#fff" />
         </TouchableOpacity>
       </LinearGradient>
     )
@@ -72,8 +80,8 @@ export function BaseButton({
       style={[
         styles.outline,
         { backgroundColor, borderColor, opacity: disabled ? 0.5 : 1 },
-        size === 'lg' ? styles.padLg : styles.padMd,
-        { flexDirection: 'row', alignItems: 'center', gap: 8 },
+        styles.row,
+        padStyle,
         style,
       ]}
       accessibilityRole="button"
@@ -81,17 +89,15 @@ export function BaseButton({
       hitSlop={{ top: 6, bottom: 6, left: 8, right: 8 }}
     >
       <UiIconSymbol name={iconName} color={iconColor ?? textColor} />
-      <AppText style={{ color: textColor, fontWeight: '700' }}>{label}</AppText>
+      <Label color={textColor} />
     </TouchableOpacity>
   )
 }
 
 const styles = StyleSheet.create({
+  row: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   // outline
-  outline: {
-    borderWidth: 1,
-    borderRadius: 50,
-  },
+  outline: { borderWidth: 1, borderRadius: 50 },
   // gradient
   gradWrap: {
     borderRadius: 28,
@@ -103,24 +109,18 @@ const styles = StyleSheet.create({
     elevation: 10,
     alignSelf: 'center',
   },
-  fullWidth: {
-    width: '100%',
-    maxWidth: 420,
-  },
-  gradInner: {
-    borderRadius: 26,
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.35)',
-  },
-  gradText: {
-    color: '#fff',
+  fullWidth: { width: '100%', maxWidth: 420 },
+  gradInner: { borderRadius: 26, backgroundColor: 'rgba(0,0,0,0.35)' },
+  // label
+  labelBase: {
     fontSize: 16,
     fontWeight: '700',
     letterSpacing: 0.3,
     textAlign: 'center',
-    flex: 1,
+    flexShrink: 1,
+    minWidth: 0,
   },
   // paddings
-  padMd: { paddingHorizontal: 16, paddingVertical: 8 },
-  padLg: { paddingHorizontal: 24, paddingVertical: 14 },
+  padMd: { paddingHorizontal: 12, paddingVertical: 8 },
+  padLg: { paddingHorizontal: 16, paddingVertical: 14 },
 })

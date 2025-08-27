@@ -165,12 +165,12 @@ export function useAuthorization() {
       const authorizationResult = await wallet.authorize({
         identity,
         chain: selectedCluster.id,
-        auth_token: fetchQuery.data?.authToken,
+        // no auth_token on purpose → wallet will prompt connect + sign
         sign_in_payload: signInPayload,
-      })
-      return (await handleAuthorizationResult(authorizationResult)).selectedAccount
+      });
+      return (await handleAuthorizationResult(authorizationResult)).selectedAccount;
     },
-    [fetchQuery.data?.authToken, handleAuthorizationResult, selectedCluster.id],
+    [handleAuthorizationResult, selectedCluster.id],
   )
 
   /** Deauthorize the current session (invalidates the token on the wallet side) */
@@ -192,6 +192,7 @@ export function useAuthorization() {
   return useMemo(
     () => ({
       accounts: fetchQuery.data?.accounts ?? null,
+      authToken: fetchQuery.data?.authToken ?? null,
       authorizeSession,
       authorizeSessionWithSignIn,
       deauthorizeSession,
@@ -206,6 +207,7 @@ export function useAuthorization() {
       deauthorizeSessions,
       fetchQuery.data?.accounts,
       fetchQuery.data?.selectedAccount,
+      fetchQuery.data?.authToken,
       fetchQuery.isLoading,
     ],
   )
