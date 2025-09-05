@@ -1,3 +1,4 @@
+// components/cluster/cluster-provider.tsx
 import { Cluster } from '@/components/cluster/cluster'
 import { ClusterNetwork } from '@/components/cluster/cluster-network'
 import { AppConfig } from '@/constants/app-config'

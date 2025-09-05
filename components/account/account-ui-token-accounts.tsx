@@ -1,3 +1,4 @@
+// components/account/account-ui-token-accounts.tsx
 import React, { useEffect, useMemo } from 'react'
 import { View, Image, ActivityIndicator, Pressable } from 'react-native'
 import { AppText } from '@/components/app-text'
@@ -45,7 +46,6 @@ export function AccountUiTokenAccounts({ address, selectable = false, selected =
 
     const tokens: PortfolioToken[] = sortedTokens.map((t) => {
       const decimals = Number((t as any).decimals ?? 0)
-      // base units sans erreurs d’arrondi (toFixed -> string -> remove dot)
       const amountBaseStr =
         decimals > 0
           ? t.amount.toFixed(decimals).replace('.', '')
