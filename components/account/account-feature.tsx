@@ -19,11 +19,13 @@ import ConfirmDialog from '@/components/ui/confirm-dialog';
 
 type SelectItem = { mint: string; tokenAccount?: string }
 
+const CTA_HEIGHT = 56; // height of the floating Burn button
+
 export function AccountFeature() {
   const { account } = useWalletUi()
   const [refreshing, setRefreshing] = useState(false)
   const { data: sns } = useSnsDomains(account?.publicKey)
-  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false)
 
   const invalidateBalance = useGetBalanceInvalidate({ address: account?.publicKey as PublicKey })
   const invalidateTokenAccounts = useGetTokenAccountsInvalidate({ address: account?.publicKey as PublicKey })
@@ -34,7 +36,6 @@ export function AccountFeature() {
     setRefreshing(false)
   }, [invalidateBalance, invalidateTokenAccounts])
 
-  // Selection state for tokens
   const insets = useSafeAreaInsets()
   const [selected, setSelected] = useState<SelectItem[]>([])
   const selectedCount = selected.length
@@ -51,14 +52,14 @@ export function AccountFeature() {
   const [burnBusy, setBurnBusy] = useState(false)
 
   const onBurnSelectedTokens = useCallback(() => {
-    if (!selected.length || !account?.publicKey) return;
-    setConfirmOpen(true);
-  }, [selected.length, account?.publicKey]);
+    if (!selected.length || !account?.publicKey) return
+    setConfirmOpen(true)
+  }, [selected.length, account?.publicKey])
 
   const doBurn = useCallback(async () => {
-    if (!selected.length || !account?.publicKey) return;
-    setConfirmOpen(false);
-    setBurnBusy(true);
+    if (!selected.length || !account?.publicKey) return
+    setConfirmOpen(false)
+    setBurnBusy(true)
     try {
       await burnTokens(
         selected.map(({ mint, tokenAccount }) => ({
@@ -66,13 +67,13 @@ export function AccountFeature() {
           tokenAccount: tokenAccount ? new PublicKey(tokenAccount) : undefined,
           amountBase: 'ALL' as const,
         })),
-      );
-      setSelected([]);
-      await Promise.all([invalidateBalance(), invalidateTokenAccounts()]);
+      )
+      setSelected([])
+      await Promise.all([invalidateBalance(), invalidateTokenAccounts()])
     } finally {
-      setBurnBusy(false);
+      setBurnBusy(false)
     }
-  }, [selected, account?.publicKey, burnTokens, invalidateBalance, invalidateTokenAccounts]);
+  }, [selected, account?.publicKey, burnTokens, invalidateBalance, invalidateTokenAccounts])
 
   return (
     <AppPage>
@@ -80,7 +81,14 @@ export function AccountFeature() {
         <View style={{ flex: 1 }}>
           <ScrollView
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => onRefresh()} />}
-            contentContainerStyle={{ paddingBottom: (selectedCount > 0 ? 56 + 16 : 0) + insets.bottom }}
+            contentContainerStyle={{
+              // only leave space when the floating CTA is visible
+              paddingBottom: selectedCount > 0 ? CTA_HEIGHT + 16 : 0,
+            }}
+            scrollIndicatorInsets={{
+              bottom: selectedCount > 0 ? CTA_HEIGHT + 16 : 0,
+            }}
+            contentInsetAdjustmentBehavior="never"
           >
             <AppView disableBg style={{ alignItems: 'center', gap: 4 }}>
               <AccountUiBalance address={account.publicKey} />
@@ -110,8 +118,10 @@ export function AccountFeature() {
               <AccountUiButtons />
             </AppView>
 
-            <AppView disableBg style={{ marginTop: 0, alignItems: 'center', gap: 8, width: '100%' }}>
-              {/* Token list, selectable */}
+            <AppView
+              disableBg
+              style={{ marginTop: 0, alignItems: 'center', gap: 8, width: '100%', paddingBottom: 0 }}
+            >
               <AccountUiTokenAccounts
                 address={account.publicKey}
                 selectable

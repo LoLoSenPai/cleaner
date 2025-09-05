@@ -18,7 +18,7 @@ export default function HomeScreen() {
   const [sheetOpen, setSheetOpen] = useState(false)
 
   return (
-    <AppView style={{ gap: 16, paddingTop: 32 }}>
+    <AppView style={{ gap: 16, paddingTop: 32, flex: 1, overflow: 'visible' }}>
       {/* ---- SOL balance (glass) ---- */}
       <Card>
         <View style={{ padding: 16 }}>
@@ -82,7 +82,7 @@ export default function HomeScreen() {
           setSheetOpen(false)
           if (opts.close) router.push('/(tabs)/account/clean')
           else if (opts.swap) router.push('/(tabs)/swap')
-          else if (opts.burn) router.push('/(tabs)/nfts')
+          // else if (opts.burn) router.push('/(tabs)/nfts')
         }}
       />
     </AppView>

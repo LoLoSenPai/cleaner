@@ -1,5 +1,5 @@
-import React, { useState } from 'react'
-import { View, Alert } from 'react-native'
+import React, { useState, useMemo, useCallback } from 'react'
+import { View } from 'react-native'
 import { PublicKey } from '@solana/web3.js'
 import { AppView } from '@/components/app-view'
 import { AppText } from '@/components/app-text'
@@ -11,6 +11,7 @@ import Segmented from '@/components/ui/segmented'
 import { BaseButton } from '@/components/solana/base-button'
 import { useBurnNfts } from '@/hooks/use-burn-nfts'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import ConfirmDialog from '@/components/ui/confirm-dialog'
 
 export default function NftsScreen() {
   const { account } = useWalletUi()
@@ -19,54 +20,54 @@ export default function NftsScreen() {
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const { mutateAsync: burnNfts } = useBurnNfts()
   const [busy, setBusy] = useState(false)
+  const [confirmOpen, setConfirmOpen] = useState(false)
   const insets = useSafeAreaInsets()
+
+  const all = useMemo(() => parseHeliusNFTs(data?.nfts ?? []), [data?.nfts])
+  const nfts = useMemo(() => all.filter(n => !n.isCompressed), [all])
+  const cnfts = useMemo(() => all.filter(n => n.isCompressed), [all])
+
+  const isCnftTab = selectedTab === 'cnft'
+  const currentList = isCnftTab ? cnfts : nfts
+
+  const selectedToBurn = useMemo(
+    () =>
+      !isCnftTab
+        ? nfts
+          .filter(n => selectedIds.includes(n.id))
+          .map(n => ({ mint: new PublicKey(n.id) }))
+        : [],
+    [isCnftTab, nfts, selectedIds],
+  )
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => (prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]))
+  }
+
+  const openConfirm = () => {
+    if (!selectedToBurn.length) return
+    setConfirmOpen(true)
+  }
+
+  const doBurn = useCallback(async () => {
+    if (!selectedToBurn.length) return
+    setConfirmOpen(false)
+    setBusy(true)
+    try {
+      await burnNfts(selectedToBurn)
+      setSelectedIds([])
+      await refetch()
+    } finally {
+      setBusy(false)
+    }
+  }, [burnNfts, refetch, selectedToBurn])
+
+  const selectedCount = selectedToBurn.length
+  const currentLabel = isCnftTab ? 'cNFTs' : 'NFTs'
 
   if (!account?.publicKey) return <AppText>Connect your wallet</AppText>
   if (isLoading) return <AppText>Loading NFTs...</AppText>
   if (isError) return <AppText>Error loading NFTs</AppText>
-
-  const all = parseHeliusNFTs(data?.nfts ?? [])
-  const nfts = all.filter((n) => !n.isCompressed)
-  const cnfts = all.filter((n) => n.isCompressed)
-
-  const toggleSelect = (id: string) => {
-    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
-  }
-
-  const isCnftTab = selectedTab === 'cnft'
-  const currentList = isCnftTab ? cnfts : nfts
-  const currentLabel = isCnftTab ? 'cNFTs' : 'NFTs'
-
-  const selectedToBurn = !isCnftTab
-    ? nfts.filter((n) => selectedIds.includes(n.id)).map((n) => ({ mint: new PublicKey(n.id) }))
-    : []
-
-  const onBurnSelected = () => {
-    if (!selectedToBurn.length) return
-    Alert.alert(
-      'Confirm burn',
-      `You are about to permanently burn ${selectedToBurn.length} NFT(s). This cannot be undone.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Burn',
-          style: 'destructive',
-          onPress: async () => {
-            setBusy(true)
-            try {
-              await burnNfts(selectedToBurn)
-              setSelectedIds([])
-              await refetch()
-            } finally {
-              setBusy(false)
-            }
-          },
-        },
-      ],
-    )
-  }
-
-  const selectedCount = selectedToBurn.length
 
   return (
     <View style={{ flex: 1 }}>
@@ -75,9 +76,7 @@ export default function NftsScreen() {
           flex: 1,
           paddingTop: 0,
           paddingHorizontal: 16,
-          paddingBottom: (!isCnftTab && selectedCount > 0
-            ? 56 + 16 + insets.bottom
-            : 0),
+          paddingBottom: (!isCnftTab && selectedCount > 0 ? 56 + 16 + insets.bottom : 0),
         }}
       >
         <Segmented
@@ -91,11 +90,6 @@ export default function NftsScreen() {
             { value: 'cnft', label: 'cNFTs' },
           ]}
         />
-
-        {/* <AppView style={{ marginTop: 8, marginBottom: 12, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <AppText type="subtitle">{currentLabel}</AppText>
-          {isCnftTab && <AppText style={{ opacity: 0.7 }}>Burn not supported for cNFTs</AppText>}
-        </AppView> */}
 
         {currentList.length === 0 ? (
           <AppText>No {currentLabel} found.</AppText>
@@ -126,10 +120,20 @@ export default function NftsScreen() {
             iconName="flame.fill"
             label={busy ? 'Burning…' : `Burn selected (${selectedCount})`}
             disabled={busy}
-            onPress={onBurnSelected}
+            onPress={openConfirm}
           />
         </View>
       )}
+
+      <ConfirmDialog
+        visible={confirmOpen}
+        title="Confirm burn"
+        message={`You are about to permanently burn ${selectedCount} NFT(s). This cannot be undone.`}
+        cancelText="Cancel"
+        confirmText={busy ? 'Burning…' : 'Burn'}
+        onCancel={() => setConfirmOpen(false)}
+        onConfirm={() => { if (!busy) void doBurn(); }}  // wrap async → void
+      />
     </View>
   )
 }

@@ -33,28 +33,36 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const [busy, setBusy] = useState(false)
 
   const signIn = useCallback(async (): Promise<Account> => {
+    console.log('[CleanerAuth] signIn: tap');
     setBusy(true)
     try {
       const url = new URL(AppConfig.uri)
       const payload = {
         domain: url.host,
+        uri: AppConfig.uri,
         statement: AppConfig.siws.statement,
         version: '1',
         nonce: `${Date.now()}`,
       }
+      console.log('[CleanerAuth] signIn: payload', payload);
 
       const acc = await transact(async (wallet) => {
         if (authToken) {
+          console.log('[CleanerAuth] signIn: deauthorizeSession (token present)');
           try {
             await deauthorizeSession(wallet)
-          } catch {
+          } catch (e) {
+            console.log('[CleanerAuth] signIn: deauthorizeSession error (ignored)', String(e));
           }
         }
+        console.log('[CleanerAuth] signIn: clear local cache');
         await deauthorizeSessions()
 
+        console.log('[CleanerAuth] signIn: authorizeSessionWithSignIn → wallet.authorize');
         return await authorizeSessionWithSignIn(wallet, payload)
       })
 
+      console.log('[CleanerAuth] signIn: success', acc?.address);
       setSessionAccount(acc)
       return acc
     } finally {

@@ -3,7 +3,7 @@ import { useWalletUiTheme } from '@/components/solana/use-wallet-ui-theme'
 import { UiIconSymbol } from '@/components/ui/ui-icon-symbol'
 import { LinearGradient } from 'expo-linear-gradient'
 import React, { ComponentProps } from 'react'
-import { StyleSheet, TouchableOpacity, ViewStyle } from 'react-native'
+import { StyleSheet, TouchableOpacity, View, ViewStyle } from 'react-native'
 
 type IconName = ComponentProps<typeof UiIconSymbol>['name']
 type IconColor = ComponentProps<typeof UiIconSymbol>['color']
@@ -32,17 +32,28 @@ export function BaseButton({
   fullWidth = false,
 }: Props) {
   const { backgroundColor, borderColor, textColor } = useWalletUiTheme()
-  const padStyle = size === 'lg' ? styles.padLg : styles.padMd
+  const padH = size === 'lg' ? 16 : 12
+  const padV = size === 'lg' ? 14 : 8
 
   const Label = ({ color }: { color: string }) => (
     <AppText
-      style={[styles.labelBase, { color }]}
+      style={[styles.label, { color }]}
       numberOfLines={1}
       ellipsizeMode="tail"
       allowFontScaling={false}
     >
       {label}
     </AppText>
+  )
+
+  const Content = ({ color }: { color: string }) => (
+    <View style={[styles.inner, { paddingHorizontal: padH, paddingVertical: padV }]}>
+      <UiIconSymbol name={iconName} color={iconColor ?? color} />
+      {/* Centered overlay; no right-side spacer */}
+      <View pointerEvents="none" style={[styles.centerOverlay, { left: padH, right: padH }]}>
+        <Label color={color} />
+      </View>
+    </View>
   )
 
   if (variant === 'gradient') {
@@ -61,13 +72,12 @@ export function BaseButton({
         <TouchableOpacity
           disabled={disabled}
           onPress={disabled ? undefined : onPress}
-          style={[styles.row, styles.gradInner, padStyle]}
+          style={styles.gradInner}
           accessibilityRole="button"
           accessibilityState={{ disabled }}
           hitSlop={{ top: 6, bottom: 6, left: 8, right: 8 }}
         >
-          <UiIconSymbol name={iconName} color={iconColor ?? '#fff'} />
-          <Label color="#fff" />
+          <Content color="#fff" />
         </TouchableOpacity>
       </LinearGradient>
     )
@@ -80,25 +90,22 @@ export function BaseButton({
       style={[
         styles.outline,
         { backgroundColor, borderColor, opacity: disabled ? 0.5 : 1 },
-        styles.row,
-        padStyle,
         style,
       ]}
       accessibilityRole="button"
       accessibilityState={{ disabled }}
       hitSlop={{ top: 6, bottom: 6, left: 8, right: 8 }}
     >
-      <UiIconSymbol name={iconName} color={iconColor ?? textColor} />
-      <Label color={textColor} />
+      <Content color={textColor} />
     </TouchableOpacity>
   )
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  // outline
+  inner: { position: 'relative', flexDirection: 'row', alignItems: 'center', gap: 6 },
+
+  // containers
   outline: { borderWidth: 1, borderRadius: 50 },
-  // gradient
   gradWrap: {
     borderRadius: 28,
     padding: 2,
@@ -111,16 +118,25 @@ const styles = StyleSheet.create({
   },
   fullWidth: { width: '100%', maxWidth: 420 },
   gradInner: { borderRadius: 26, backgroundColor: 'rgba(0,0,0,0.35)' },
+
+  // centered label overlay
+  centerOverlay: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    minWidth: 0,
+  },
+
   // label
-  labelBase: {
+  label: {
     fontSize: 16,
     fontWeight: '700',
     letterSpacing: 0.3,
     textAlign: 'center',
     flexShrink: 1,
     minWidth: 0,
+    maxWidth: '100%',
   },
-  // paddings
-  padMd: { paddingHorizontal: 12, paddingVertical: 8 },
-  padLg: { paddingHorizontal: 16, paddingVertical: 14 },
 })

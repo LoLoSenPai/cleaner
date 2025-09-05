@@ -1,3 +1,4 @@
+// components/solana/use-mobile-wallet.ts
 import { transact } from '@solana-mobile/mobile-wallet-adapter-protocol-web3js'
 import { SignInPayload } from '@solana-mobile/mobile-wallet-adapter-protocol'
 import { Transaction, TransactionSignature, VersionedTransaction } from '@solana/web3.js'

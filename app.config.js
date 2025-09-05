@@ -2,12 +2,12 @@ import 'dotenv/config'
 
 export default {
   expo: {
-    name: 'cleaner',
-    slug: 'cleaner',
+    name: 'Clyra',
+    slug: 'clyra',
     version: '1.0.0',
     orientation: 'portrait',
     icon: './assets/splash/icon.png',
-    scheme: 'cleaner',
+    scheme: 'clyra',
     userInterfaceStyle: 'automatic',
     newArchEnabled: true,
 
@@ -30,7 +30,7 @@ export default {
 
     plugins: [
       'expo-router',
-      ['./plugins/with-svmwa-queries'],
+      ['./plugins/with-svmwa-queries.js'],
       [
         'expo-splash-screen',
         {

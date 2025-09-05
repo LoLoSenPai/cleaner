@@ -1,12 +1,13 @@
-import React, { useMemo } from 'react'
+import React, { useEffect, useMemo } from 'react'
 import { View, Image, ActivityIndicator, Pressable } from 'react-native'
 import { AppText } from '@/components/app-text'
-import { AppView } from '@/components/app-view'
 import { useHeliusAssets } from '@/hooks/use-helius-assets'
 import { parseHeliusTokens } from '@/utils/parse-helius-assets'
 import { PublicKey } from '@solana/web3.js'
 import { SellabilityBadge } from '@/components/account/SellabilityBadge'
 import { LinearGradient } from 'expo-linear-gradient'
+import { publishPortfolioSnapshot, PortfolioToken } from '@/utils/portfolio-cache'
+import { useWalletUi } from '@/components/solana/use-wallet-ui'
 
 type SelectItem = { mint: string; tokenAccount?: string }
 
@@ -22,6 +23,7 @@ type Props = {
 
 export function AccountUiTokenAccounts({ address, selectable = false, selected = [], onToggleSelect }: Props) {
   const { data, isLoading, isError, error } = useHeliusAssets(address)
+  const { account } = useWalletUi()
 
   // parseHeliusTokens() is your helper; we augment the type locally to include optional tokenAccount
   const sortedTokens = useMemo(() => {
@@ -36,6 +38,33 @@ export function AccountUiTokenAccounts({ address, selectable = false, selected =
     }[]) : []
     return [...tokens].sort((a, b) => (b.usdValue ?? 0) - (a.usdValue ?? 0))
   }, [data])
+
+  useEffect(() => {
+    if (!account?.publicKey) return
+    const owner = account.publicKey.toBase58()
+
+    const tokens: PortfolioToken[] = sortedTokens.map((t) => {
+      const decimals = Number((t as any).decimals ?? 0)
+      // base units sans erreurs d’arrondi (toFixed -> string -> remove dot)
+      const amountBaseStr =
+        decimals > 0
+          ? t.amount.toFixed(decimals).replace('.', '')
+          : String(Math.floor(t.amount))
+
+      return {
+        mint: t.mint,
+        amountUi: t.amount,
+        amountBaseStr,
+        decimals,
+        usd: Number(t.usdValue ?? 0),
+        symbol: t.symbol,
+        logoURI: t.image,
+        tokenAccount: t.tokenAccount,
+      }
+    })
+
+    publishPortfolioSnapshot(owner, tokens)
+  }, [account?.publicKey, sortedTokens])
 
   if (isLoading) return <ActivityIndicator />
   if (isError) {
@@ -125,7 +154,7 @@ export function AccountUiTokenAccounts({ address, selectable = false, selected =
                   <SellabilityBadge
                     mint={token.mint}
                     decimals={(token as any).decimals ?? 0}
-                    testAmountUi={Math.min(100, token.amount)} 
+                    testAmountUi={Math.min(100, token.amount)}
                   />
                 </View>
               </View>

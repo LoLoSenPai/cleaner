@@ -6,7 +6,7 @@ import { HELIUS_ENDPOINT } from '@/utils/env'
 export class AppConfig {
   static name = 'Wallet Cleaner'
   static uri = 'https://example.com'
-  public static readonly icon = '../assets/splash/icon.png'
+  static readonly icon: string | undefined = undefined
   static siws = {
     statement: 'Sign in to Wallet Cleaner',
   }

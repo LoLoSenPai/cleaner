@@ -76,7 +76,9 @@
     "react-native-svg": "15.11.2",
     "react-native-web": "~0.20.0",
     "react-native-webview": "13.13.5",
-    "react-qr-code": "^2.0.16"
+    "react-qr-code": "^2.0.16",
+    "expo-intent-launcher": "~12.1.5",
+    "expo-application": "~6.1.5"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",

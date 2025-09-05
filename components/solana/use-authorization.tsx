@@ -149,26 +149,36 @@ export function useAuthorization() {
   /** Authorize the session */
   const authorizeSession = useCallback(
     async (wallet: AuthorizeAPI) => {
+      console.log('[CleanerAuth] authorizeSession call', {
+        chain: selectedCluster.id,
+        hasAuthToken: !!fetchQuery.data?.authToken,
+        identity: { name: AppConfig.name, uri: AppConfig.uri, icon: !!AppConfig.icon },
+      });
       const authorizationResult = await wallet.authorize({
         identity,
         chain: selectedCluster.id,
         auth_token: fetchQuery.data?.authToken,
       })
+      console.log('[CleanerAuth] authorizeSession result OK');
       return (await handleAuthorizationResult(authorizationResult)).selectedAccount
     },
     [fetchQuery.data?.authToken, handleAuthorizationResult, selectedCluster.id],
   )
 
-  /** SIWS (Sign-In With Solana) — combine authorize + sign message */
   const authorizeSessionWithSignIn = useCallback(
     async (wallet: AuthorizeAPI, signInPayload: SignInPayload) => {
+      console.log('[CleanerAuth] authorizeSessionWithSignIn call', {
+        chain: selectedCluster.id,
+        signInPayloadDomain: signInPayload?.domain,
+        identity: { name: AppConfig.name, uri: AppConfig.uri, icon: !!AppConfig.icon },
+      });
       const authorizationResult = await wallet.authorize({
         identity,
         chain: selectedCluster.id,
-        // no auth_token on purpose → wallet will prompt connect + sign
         sign_in_payload: signInPayload,
-      });
-      return (await handleAuthorizationResult(authorizationResult)).selectedAccount;
+      })
+      console.log('[CleanerAuth] authorizeSessionWithSignIn result OK', !!authorizationResult?.sign_in_result);
+      return (await handleAuthorizationResult(authorizationResult)).selectedAccount
     },
     [handleAuthorizationResult, selectedCluster.id],
   )
