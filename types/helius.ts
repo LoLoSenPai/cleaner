@@ -1,3 +1,4 @@
+// types/helius.ts
 export type HeliusAsset = {
     id: string
     interface: string

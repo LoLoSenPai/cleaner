@@ -1,79 +1,60 @@
-// components/account/account-ui-token-accounts.tsx
-import React, { useEffect, useMemo } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { View, Image, ActivityIndicator, Pressable } from 'react-native'
 import { AppText } from '@/components/app-text'
-import { useHeliusAssets } from '@/hooks/use-helius-assets'
-import { parseHeliusTokens } from '@/utils/parse-helius-assets'
-import { PublicKey } from '@solana/web3.js'
 import { SellabilityBadge } from '@/components/account/SellabilityBadge'
 import { LinearGradient } from 'expo-linear-gradient'
-import { publishPortfolioSnapshot, PortfolioToken } from '@/utils/portfolio-cache'
 import { useWalletUi } from '@/components/solana/use-wallet-ui'
+import {
+  usePortfolioSnapshot,
+  useEnsurePortfolio,
+  hasFreshSnapshot,
+  ensurePortfolio,
+} from '@/utils/portfolio-cache'
 
 type SelectItem = { mint: string; tokenAccount?: string }
 
 type Props = {
-  address: PublicKey
-  /** Optional selection mode */
+  address: import('@solana/web3.js').PublicKey
   selectable?: boolean
-  /** Selected items (mint + optional tokenAccount) */
   selected?: SelectItem[]
-  /** Toggle callback when a row is pressed */
   onToggleSelect?: (item: SelectItem) => void
 }
 
 export function AccountUiTokenAccounts({ address, selectable = false, selected = [], onToggleSelect }: Props) {
-  const { data, isLoading, isError, error } = useHeliusAssets(address)
   const { account } = useWalletUi()
+  const owner = account?.publicKey?.toBase58()
+  const [boot, setBoot] = useState(false)
 
-  // parseHeliusTokens() is your helper; we augment the type locally to include optional tokenAccount
-  const sortedTokens = useMemo(() => {
-    const tokens = data ? (parseHeliusTokens(data.tokens) as {
-      mint: string
-      image?: string
-      symbol?: string
-      name?: string
-      amount: number
-      usdValue?: number
-      tokenAccount?: string
-    }[]) : []
-    return [...tokens].sort((a, b) => (b.usdValue ?? 0) - (a.usdValue ?? 0))
-  }, [data])
+  useEnsurePortfolio(owner)
 
   useEffect(() => {
-    if (!account?.publicKey) return
-    const owner = account.publicKey.toBase58()
-
-    const tokens: PortfolioToken[] = sortedTokens.map((t) => {
-      const decimals = Number((t as any).decimals ?? 0)
-      const amountBaseStr =
-        decimals > 0
-          ? t.amount.toFixed(decimals).replace('.', '')
-          : String(Math.floor(t.amount))
-
-      return {
-        mint: t.mint,
-        amountUi: t.amount,
-        amountBaseStr,
-        decimals,
-        usd: Number(t.usdValue ?? 0),
-        symbol: t.symbol,
-        logoURI: t.image,
-        tokenAccount: t.tokenAccount,
+    let cancelled = false
+    const run = async () => {
+      if (!owner) return
+      if (!hasFreshSnapshot(owner)) {
+        setBoot(true)
+        try {
+          await ensurePortfolio(owner, { force: true })
+        } finally {
+          if (!cancelled) setBoot(false)
+        }
+      } else {
+        setBoot(false)
       }
-    })
+    }
+    run()
+    return () => {
+      cancelled = true
+    }
+  }, [owner])
 
-    publishPortfolioSnapshot(owner, tokens)
-  }, [account?.publicKey, sortedTokens])
+  const tokens = usePortfolioSnapshot(owner)
 
-  if (isLoading) return <ActivityIndicator />
-  if (isError) {
-    return (
-      <AppText style={{ padding: 8, backgroundColor: 'rgba(255,0,0,0.15)' }}>
-        Error: {error?.message?.toString?.()}
-      </AppText>
-    )
-  }
+  const sortedTokens = useMemo(() => {
+    return [...tokens].sort((a, b) => (b.usd ?? 0) - (a.usd ?? 0))
+  }, [tokens])
+
+  if (boot) return <ActivityIndicator />
   if (!sortedTokens.length) return <AppText>No tokens found.</AppText>
 
   return (
@@ -92,7 +73,7 @@ export function AccountUiTokenAccounts({ address, selectable = false, selected =
         }}
       >
         {sortedTokens.map((token, idx) => {
-          const tokenAccount = token.tokenAccount // may be undefined
+          const tokenAccount = token.tokenAccount
           const isSelected =
             selectable &&
             selected.some(s => s.mint === token.mint && (s.tokenAccount ? s.tokenAccount === tokenAccount : true))
@@ -129,7 +110,7 @@ export function AccountUiTokenAccounts({ address, selectable = false, selected =
               <Image
                 source={{
                   uri:
-                    token.image ||
+                    token.logoURI ||
                     'https://upload.wikimedia.org/wikipedia/commons/6/65/No-Image-Placeholder.svg',
                 }}
                 style={{
@@ -153,8 +134,8 @@ export function AccountUiTokenAccounts({ address, selectable = false, selected =
                   </AppText>
                   <SellabilityBadge
                     mint={token.mint}
-                    decimals={(token as any).decimals ?? 0}
-                    testAmountUi={Math.min(100, token.amount)}
+                    decimals={token.decimals ?? 0}
+                    testAmountUi={Math.min(100, token.amountUi)}
                   />
                 </View>
               </View>
@@ -162,16 +143,12 @@ export function AccountUiTokenAccounts({ address, selectable = false, selected =
               {/* Amount + USD */}
               <View style={{ alignItems: 'flex-end' }}>
                 <AppText style={{ fontWeight: '700', color: 'white' }}>
-                  {token.amount.toLocaleString(undefined, {
-                    maximumFractionDigits: 4,
-                  })}
+                  {token.amountUi.toLocaleString(undefined, { maximumFractionDigits: 4 })}
                 </AppText>
-                {typeof token.usdValue === 'number' && (
-                  <AppText
-                    style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)' }}
-                  >
+                {typeof token.usd === 'number' && token.usd > 0 && (
+                  <AppText style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)' }}>
                     ≈{' '}
-                    {token.usdValue.toLocaleString(undefined, {
+                    {token.usd.toLocaleString(undefined, {
                       style: 'currency',
                       currency: 'USD',
                       maximumFractionDigits: 2,
@@ -185,16 +162,13 @@ export function AccountUiTokenAccounts({ address, selectable = false, selected =
           return (
             <View key={`${token.mint}:${tokenAccount ?? 'ata'}`}>
               {selectable ? (
-                <Pressable
-                  onPress={() => onToggleSelect?.({ mint: token.mint, tokenAccount })}
-                >
+                <Pressable onPress={() => onToggleSelect?.({ mint: token.mint, tokenAccount })}>
                   {Row}
                 </Pressable>
               ) : (
                 Row
               )}
 
-              {/* Separator */}
               {idx < sortedTokens.length - 1 && (
                 <View
                   style={{

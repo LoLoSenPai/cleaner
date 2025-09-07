@@ -1,3 +1,4 @@
+//components/account/account-feature-cleaner.tsx
 import { AppText } from '@/components/app-text'
 import { AppView } from '@/components/app-view'
 import { useConnection } from '@/components/solana/solana-provider'
@@ -48,7 +49,7 @@ export function AccountFeatureCleaner({ address }: { address: PublicKey }) {
         return (closableAccounts.length * RENT_RECOVERED_PER_ACCOUNT).toFixed(4)
     }, [closableAccounts.length])
 
-    // ✅ Simule chaque fermeture pour ne garder que les valides
+    // ✅ Simulate each close account tx to filter out non-closable accounts
     useEffect(() => {
         if (!emptyAccounts.length) {
             setClosableAccounts([])

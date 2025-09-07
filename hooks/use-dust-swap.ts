@@ -2,10 +2,11 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useMobileWallet } from '@/components/solana/use-mobile-wallet'
 import { useWalletUi } from '@/components/solana/use-wallet-ui'
-import { VersionedTransaction } from '@solana/web3.js'
-import { usePortfolioSnapshot } from '@/utils/portfolio-cache'
+import { PublicKey, VersionedTransaction } from '@solana/web3.js'
+import { hasFreshSnapshot, ensurePortfolio, refreshPortfolio } from '@/utils/portfolio-cache'
 import { useConnection } from '@/components/solana/solana-provider'
 import { Buffer } from 'buffer'
+import { useGetTokenAccountsInvalidate } from '@/components/account/use-get-token-accounts'
 
 const WSOL_MINT = 'So11111111111111111111111111111111111111112'
 
@@ -25,8 +26,6 @@ type RunResult = {
   fail: { mint: string; symbol: string; reason: string }[]
 }
 
-// --- helpers ---------------------------------------------------------------
-
 const delay = (ms: number) => new Promise((res) => setTimeout(res, ms))
 
 const isUserDecline = (e: any) => {
@@ -43,14 +42,11 @@ const prettyReason = (e: any) => {
   return msg
 }
 
-// --- hook ------------------------------------------------------------------
-
 export function useDustSwap() {
   const { account } = useWalletUi()
   const connection = useConnection()
   const { signAndSendTransaction } = useMobileWallet()
   const owner = account?.publicKey?.toBase58()
-  const portfolio = usePortfolioSnapshot(owner)
 
   const [preview, setPreview] = useState<PreviewItem[]>([])
   const [skipped, setSkipped] = useState<Skipped[]>([])
@@ -59,6 +55,16 @@ export function useDustSwap() {
   const [error, setError] = useState<string | null>(null)
   const [lastRun, setLastRun] = useState<RunResult | null>(null)
 
+  const invalidateTokenAccounts = useGetTokenAccountsInvalidate({
+    address: account?.publicKey as PublicKey,
+  })
+
+  // bootstrap: ensure portfolio on owner change
+  useEffect(() => {
+    if (!owner) return
+    ensurePortfolio(owner).catch(() => {})
+  }, [owner])
+
   const refresh = useCallback(
     async (thresholdUsd = 1) => {
       if (!owner) {
@@ -66,9 +72,13 @@ export function useDustSwap() {
         setSkipped([])
         return
       }
+
       setLoading(true)
       try {
-        const items = (portfolio ?? [])
+        const snap = await ensurePortfolio(owner, { force: !hasFreshSnapshot(owner) })
+        const source = snap.tokens
+
+        const items = source
           .filter((t) => t.usd > 0 && t.usd < thresholdUsd)
           .map((t) => ({
             mint: t.mint,
@@ -87,7 +97,7 @@ export function useDustSwap() {
         setLoading(false)
       }
     },
-    [owner, portfolio],
+    [owner],
   )
 
   useEffect(() => {
@@ -110,7 +120,7 @@ export function useDustSwap() {
 
         for (const p of items) {
           try {
-            // (1) quote exact (amount en base units)
+            // (1) quote exact
             const quoteRes = await fetch(
               `https://lite-api.jup.ag/swap/v1/quote?inputMint=${encodeURIComponent(
                 p.mint,
@@ -151,15 +161,29 @@ export function useDustSwap() {
           } catch (e: any) {
             const reason = prettyReason(e)
             run.fail.push({ mint: p.mint, symbol: p.symbol, reason })
-
             if (isUserDecline(e)) break
-
             await delay(200)
           }
         }
 
         setLastRun(run)
+
+        if (run.ok.length) {
+          await Promise.all(run.ok.map(({ sig }) => connection.confirmTransaction(sig, 'confirmed').catch(() => null)))
+        }
+
+        await delay(300)
+
+        if (owner) {
+          try {
+            await refreshPortfolio(owner)
+          } catch {}
+        }
+
+        await invalidateTokenAccounts()
+
         await refresh(thresholdUsd)
+
         return run.ok.length > 0
       } catch (e: any) {
         setError(String(e?.message ?? e))
@@ -168,7 +192,7 @@ export function useDustSwap() {
         setBusy(false)
       }
     },
-    [account?.publicKey, preview, connection, signAndSendTransaction, refresh],
+    [account?.publicKey, preview, connection, signAndSendTransaction, refresh, owner, invalidateTokenAccounts],
   )
 
   return {

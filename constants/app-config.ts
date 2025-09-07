@@ -5,7 +5,7 @@ import { HELIUS_ENDPOINT } from '@/utils/env'
 
 export class AppConfig {
   static name = 'Wallet Cleaner'
-  static uri = 'https://example.com'
+  static uri = 'https://clyra-app.lololabs.xyz'
   static readonly icon: string | undefined = undefined
   static siws = {
     statement: 'Sign in to Wallet Cleaner',

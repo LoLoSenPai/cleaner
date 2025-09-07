@@ -1,5 +1,5 @@
 import React from 'react'
-import { View, Image, Text, TouchableOpacity } from 'react-native'
+import { Image, Text, TouchableOpacity } from 'react-native'
 
 type NftItemProps = {
     name: string
@@ -24,6 +24,7 @@ export default function NftItem({ name, image, selected, onSelect }: NftItemProp
         >
             <Image
                 source={image ? { uri: image } : require('@/assets/images/splash-icon.png')}
+                onError={() => { /* could set local state to switch to placeholder if needed */ }}
                 style={{ width: '100%', height: 120, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.08)' }}
                 resizeMode="cover"
             />

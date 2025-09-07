@@ -6,7 +6,7 @@ export default {
     slug: 'clyra',
     version: '1.0.0',
     orientation: 'portrait',
-    icon: './assets/splash/icon.png',
+    icon: './assets/splash/clyra-icon.png',
     scheme: 'clyra',
     userInterfaceStyle: 'automatic',
     newArchEnabled: true,
@@ -16,7 +16,7 @@ export default {
     },
     android: {
       adaptiveIcon: {
-        foregroundImage: './assets/splash/icon.png',
+        foregroundImage: './assets/splash/clyra-icon.png',
         backgroundColor: '#ffffff',
       },
       edgeToEdgeEnabled: true,
@@ -31,11 +31,12 @@ export default {
     plugins: [
       'expo-router',
       ['./plugins/with-svmwa-queries.js'],
+      ['./plugins/with-proguard-walletadapter.js'],
       [
         'expo-splash-screen',
         {
           backgroundColor: '#000000',
-          image: './assets/splash/icon.png',
+          image: './assets/splash/clyra-icon.png',
           imageWidth: 300,
           resizeMode: 'contain',
         },

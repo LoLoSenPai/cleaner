@@ -1,3 +1,4 @@
+//app/(tabs)/account/clean.tsx
 import { AccountFeatureCleaner } from '@/components/account/account-feature-cleaner'
 import { AppView } from '@/components/app-view'
 import { useWalletUi } from '@/components/solana/use-wallet-ui'

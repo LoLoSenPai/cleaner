@@ -39,7 +39,7 @@ export default function SignIn() {
                 {AppConfig.name}
               </AppText>
               <Image
-                source={require('../assets/splash/logo.png')}
+                source={require('../assets/splash/clyra-logo.png')}
                 style={{ width: 350, height: 350 }}
                 contentFit="contain"
               />

@@ -1,3 +1,4 @@
+//components/account/account-feature.tsx
 import { useWalletUi } from '@/components/solana/use-wallet-ui'
 import { AppText } from '@/components/app-text'
 import { AppView } from '@/components/app-view'
@@ -14,17 +15,19 @@ import { WalletUiButtonConnect } from '@/components/solana/wallet-ui-button-conn
 import { BaseButton } from '@/components/solana/base-button'
 import { useBurnTokens } from '@/hooks/use-burn-tokens'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { useSnsDomains } from '@/hooks/use-sns-domains'
-import ConfirmDialog from '@/components/ui/confirm-dialog';
+import { useUserDomains } from '@/hooks/use-user-domains'
+import ConfirmDialog from '@/components/ui/confirm-dialog'
+import { refreshPortfolio } from '@/utils/portfolio-cache'
 
 type SelectItem = { mint: string; tokenAccount?: string }
 
-const CTA_HEIGHT = 56; // height of the floating Burn button
+const CTA_HEIGHT = 56
 
 export function AccountFeature() {
   const { account } = useWalletUi()
+  const owner = account?.publicKey?.toBase58()
   const [refreshing, setRefreshing] = useState(false)
-  const { data: sns } = useSnsDomains(account?.publicKey)
+  const { data: dom } = useUserDomains(account?.publicKey)
   const [confirmOpen, setConfirmOpen] = useState(false)
 
   const invalidateBalance = useGetBalanceInvalidate({ address: account?.publicKey as PublicKey })
@@ -32,9 +35,13 @@ export function AccountFeature() {
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true)
-    await Promise.all([invalidateBalance(), invalidateTokenAccounts()])
+    await Promise.all([
+      owner ? refreshPortfolio(owner) : Promise.resolve(),
+      invalidateBalance(),
+      invalidateTokenAccounts(),
+    ])
     setRefreshing(false)
-  }, [invalidateBalance, invalidateTokenAccounts])
+  }, [owner, invalidateBalance, invalidateTokenAccounts])
 
   const insets = useSafeAreaInsets()
   const [selected, setSelected] = useState<SelectItem[]>([])
@@ -69,11 +76,15 @@ export function AccountFeature() {
         })),
       )
       setSelected([])
-      await Promise.all([invalidateBalance(), invalidateTokenAccounts()])
+      await Promise.all([
+        refreshPortfolio(owner!),
+        invalidateBalance(),
+        invalidateTokenAccounts(),
+      ])
     } finally {
       setBurnBusy(false)
     }
-  }, [selected, account?.publicKey, burnTokens, invalidateBalance, invalidateTokenAccounts])
+  }, [selected, account?.publicKey, burnTokens, invalidateBalance, invalidateTokenAccounts, owner])
 
   return (
     <AppPage>
@@ -82,7 +93,6 @@ export function AccountFeature() {
           <ScrollView
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => onRefresh()} />}
             contentContainerStyle={{
-              // only leave space when the floating CTA is visible
               paddingBottom: selectedCount > 0 ? CTA_HEIGHT + 16 : 0,
             }}
             scrollIndicatorInsets={{
@@ -93,25 +103,49 @@ export function AccountFeature() {
             <AppView disableBg style={{ alignItems: 'center', gap: 4 }}>
               <AccountUiBalance address={account.publicKey} />
 
-              {sns?.domains?.length ? (
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
-                  {sns.domains.map((d, i) => (
-                    <View
-                      key={d}
-                      style={{
-                        paddingHorizontal: 8,
-                        paddingVertical: 2,
-                        borderRadius: 999,
-                        backgroundColor: i === 0 ? 'rgba(77,161,255,0.18)' : 'rgba(255,255,255,0.08)',
-                        borderWidth: 1,
-                        borderColor: i === 0 ? 'rgba(77,161,255,0.35)' : 'rgba(255,255,255,0.15)',
-                      }}
-                    >
-                      <AppText style={{ fontSize: 12, color: '#fff' }}>{d}.sol</AppText>
-                    </View>
-                  ))}
+              {!!dom?.ordered?.length && (
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, justifyContent: 'center', marginTop: 6 }}>
+                  {dom.ordered.map((d) => {
+                    const label = `${d.name}.${d.tld}`
+                    const isSkr = d.tld === 'skr'
+                    const isSaga = d.tld === 'saga'
+                    const isPrimarySol = d.tld === 'sol' && d.primary
+
+                    // .skr = green, .saga = purple, primary .sol = blue, others = neutral
+                    const bg = isSkr
+                      ? 'rgba(114,255,172,0.16)'
+                      : isSaga
+                        ? 'rgba(202,148,255,0.16)'
+                        : isPrimarySol
+                          ? 'rgba(77,161,255,0.18)'
+                          : 'rgba(255,255,255,0.08)'
+
+                    const bd = isSkr
+                      ? 'rgba(114,255,172,0.35)'
+                      : isSaga
+                        ? 'rgba(202,148,255,0.35)'
+                        : isPrimarySol
+                          ? 'rgba(77,161,255,0.35)'
+                          : 'rgba(255,255,255,0.15)'
+
+                    return (
+                      <View
+                        key={`${d.tld}:${d.name}`}
+                        style={{
+                          paddingHorizontal: 8,
+                          paddingVertical: 2,
+                          borderRadius: 999,
+                          borderWidth: 1,
+                          backgroundColor: bg,
+                          borderColor: bd,
+                        }}
+                      >
+                        <AppText style={{ fontSize: 12, color: '#fff' }}>{label}</AppText>
+                      </View>
+                    )
+                  })}
                 </View>
-              ) : null}
+              )}
             </AppView>
 
             <AppView disableBg style={{ marginTop: 0, alignItems: 'center' }}>

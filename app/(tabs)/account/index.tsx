@@ -10,12 +10,16 @@ import { useCleanerSummary } from '@/hooks/use-cleaner-summary'
 import { AccountUiBalance } from '@/components/account/account-ui-balance'
 import { useWalletUi } from '@/components/solana/use-wallet-ui'
 import { BaseButton } from '@/components/solana/base-button'
+import { useEnsurePortfolio } from '@/utils/portfolio-cache'
 
 export default function HomeScreen() {
   const { account } = useWalletUi()
   const router = useRouter()
   const s = useCleanerSummary()
   const [sheetOpen, setSheetOpen] = useState(false)
+  const owner = account?.publicKey?.toBase58()
+
+  useEnsurePortfolio(owner)
 
   return (
     <AppView style={{ gap: 16, paddingTop: 32, flex: 1, overflow: 'visible' }}>
@@ -53,7 +57,7 @@ export default function HomeScreen() {
           onPress={() => router.push('/(tabs)/swap')}
           Icon={() => <IconSwap />}
         />
-        {/* Slot libre pour plus tard (rewards / gasha) */}
+        {/* Free slot for future use */}
         <ActionTile
           title="Rewards"
           subtitle="Coming soon"
