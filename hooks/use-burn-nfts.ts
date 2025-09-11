@@ -57,11 +57,17 @@ type Kind = 'spl' | 'pnft' | 'core'
 type Group = { mint: PublicKey; ixs: TransactionInstruction[] }
 
 // --- error helpers ----------------------------------------------------------
-const stringifyErr = (err: any): string => {
-  if (!err) return ''
+
+type SimOk = { ok: true }
+type SimFail = { ok: false; err: unknown; errStr?: string; logs?: string[] }
+type SimResult = SimOk | SimFail
+
+const stringifyErr = (err: unknown): string => {
+  if (err == null) return ''
   if (typeof err === 'string') return err
-  // Error object? -> take .message
-  if (typeof err === 'object' && 'message' in err && err.message) return String((err as any).message)
+  if (typeof err === 'object' && 'message' in (err as any) && (err as any).message) {
+    return String((err as any).message)
+  }
   try {
     return JSON.stringify(err)
   } catch {
@@ -120,7 +126,7 @@ export function useBurnNfts() {
   }, [])
 
   const simulateIxs = useCallback(
-    async (owner: PublicKey, ixs: TransactionInstruction[], label?: string) => {
+    async (owner: PublicKey, ixs: TransactionInstruction[], label?: string): Promise<SimResult> => {
       try {
         const { value } = await connection.getLatestBlockhashAndContext('processed')
         const msg = new TransactionMessage({
@@ -131,18 +137,17 @@ export function useBurnNfts() {
         const tx = new VersionedTransaction(msg)
         const sim = await connection.simulateTransaction(tx, { commitment: 'processed', sigVerify: false })
         if (sim.value.err) {
-          const logs = sim.value.logs ?? []
           const err = sim.value.err
+          const logs = sim.value.logs ?? []
           console.log('[burn/sim failed]', label, err, logs.slice(-12))
-          return { ok: false as const, err, errStr: stringifyErr(err), logs }
+          return { ok: false, err, errStr: stringifyErr(err), logs }
         }
         console.log('[burn/sim ok]', label)
-        return { ok: true as const }
-      } catch (e: any) {
+        return { ok: true }
+      } catch (e: unknown) {
         const eStr = stringifyErr(e)
         console.log('[burn/sim threw]', label, eStr)
-        // IMPORTANT : ne bloque pas l’envoi, mais renvoie l’erreur pour que l’autosplit puisse décider
-        return { ok: false as const, err: e, errStr: eStr }
+        return { ok: false, err: e, errStr: eStr }
       }
     },
     [connection],
@@ -292,15 +297,17 @@ export function useBurnNfts() {
         const simRes = await simulateIxs(owner, ixs, `batch(${group.length})`)
         console.log('sendGroups — after sim', { ok: simRes.ok, err: simRes.ok ? undefined : simRes.errStr })
 
-        // 2) Trop gros ? on coupe en 2
-        if (!simRes.ok && isTooLargeErr(simRes.errStr ?? simRes.err)) {
-          if (group.length > 1) {
-            const mid = Math.floor(group.length / 2)
-            console.log('sendGroups — tx too large, splitting', group.length, '->', mid, '+', group.length - mid)
-            queue.unshift(group.slice(0, mid), group.slice(mid))
-            continue
+        if (!simRes.ok) {
+          const tooLarge = isTooLargeErr(simRes.errStr ?? stringifyErr(simRes.err))
+          if (tooLarge) {
+            if (group.length > 1) {
+              const mid = Math.floor(group.length / 2)
+              console.log('sendGroups — tx too large, splitting', group.length, '->', mid, '+', group.length - mid)
+              queue.unshift(group.slice(0, mid), group.slice(mid))
+              continue
+            }
+            console.log('sendGroups — single item still too large, sending anyway')
           }
-          console.log('sendGroups — single item still too large, sending anyway')
         }
 
         try {
@@ -321,7 +328,12 @@ export function useBurnNfts() {
 
           ok.push(...group.map(({ mint }) => ({ mint: mint.toBase58(), sig })))
         } catch (e: any) {
-          console.log('sendGroups — wallet/send error', stringifyErr(e))
+          const msg = (e?.message ?? String(e)).toLowerCase()
+          console.log('sendGroups — wallet/send error', msg)
+          // si l’utilisateur refuse, on passe au groupe suivant au lieu d’arrêter tout
+          if (msg.includes('reject') || msg.includes('denied') || msg.includes('cancel')) {
+            continue
+          }
           throw e
         }
       }
@@ -470,14 +482,16 @@ export function useBurnNfts() {
       )
 
       // -------- grouping
-      const hasHeavy = prepared.some((p) => p.kind !== 'spl')
-      const MAX_PER_TX = hasHeavy ? 6 : 16
+      const heavyCount = prepared.filter((p) => p.kind !== 'spl').length
+      const MAX_PER_TX = heavyCount === 0 ? 16 : 6
 
       const groups: Group[][] = []
       for (let i = 0; i < prepared.length; i += MAX_PER_TX) {
         const slice = prepared.slice(i, i + MAX_PER_TX).map(({ mint, ixs }) => ({ mint, ixs }))
         if (slice.length) groups.push(slice)
       }
+
+      console.log('mutateAsync — groups', groups.length, 'size per tx target =', MAX_PER_TX)
 
       if (groups.length === 0) return { ok: [], skipped }
       console.log('mutateAsync — groups', groups.length, 'size per tx target =', MAX_PER_TX)
