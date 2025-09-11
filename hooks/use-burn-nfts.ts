@@ -56,16 +56,41 @@ export type NftBurnItem = {
 type Kind = 'spl' | 'pnft' | 'core'
 type Group = { mint: PublicKey; ixs: TransactionInstruction[] }
 
+// --- error helpers ----------------------------------------------------------
+const stringifyErr = (err: any): string => {
+  if (!err) return ''
+  if (typeof err === 'string') return err
+  // Error object? -> take .message
+  if (typeof err === 'object' && 'message' in err && err.message) return String((err as any).message)
+  try {
+    return JSON.stringify(err)
+  } catch {
+    return String(err)
+  }
+}
+
+const isTooLargeErr = (err: any): boolean => {
+  const s = stringifyErr(err)
+  return (
+    s.includes('VersionedTransaction too large') ||
+    s.includes('solana_transaction::versioned::VersionedTransaction too large') ||
+    s.includes('transaction too large') ||
+    s.includes('Transaction too large') ||
+    s.includes('packet too large') ||
+    s.includes('encoded/raw')
+  )
+}
+
 export type BurnOk = { mint: string; sig: string }
 export type BurnSkip = { mint: string; reason: string }
 export type BurnBatchResult = { ok: BurnOk[]; skipped: BurnSkip[] }
 
 // ---------------------------------------------------------------------------
-// Tunables (close to Incinerator behavior)
+// Params
 // ---------------------------------------------------------------------------
 
 const CB_UNITS = 1_000_000
-const PRIORITY_FEE_MICRO_LAMPORTS = 8_000 // adjust if network busy
+const PRIORITY_FEE_MICRO_LAMPORTS = 20_000 // ajuste si réseau chargé
 
 // ---------------------------------------------------------------------------
 
@@ -96,20 +121,29 @@ export function useBurnNfts() {
 
   const simulateIxs = useCallback(
     async (owner: PublicKey, ixs: TransactionInstruction[], label?: string) => {
-      const { value } = await connection.getLatestBlockhashAndContext('processed')
-      const msg = new TransactionMessage({
-        payerKey: owner,
-        recentBlockhash: value.blockhash,
-        instructions: ixs,
-      }).compileToV0Message()
-      const tx = new VersionedTransaction(msg)
-      const sim = await connection.simulateTransaction(tx, { commitment: 'processed', sigVerify: false })
-      if (sim.value.err) {
-        const logs = sim.value.logs ?? []
-        console.log('[burn/sim failed]', label, sim.value.err, logs.slice(-12))
-        return { ok: false as const, err: sim.value.err, logs }
+      try {
+        const { value } = await connection.getLatestBlockhashAndContext('processed')
+        const msg = new TransactionMessage({
+          payerKey: owner,
+          recentBlockhash: value.blockhash,
+          instructions: ixs,
+        }).compileToV0Message()
+        const tx = new VersionedTransaction(msg)
+        const sim = await connection.simulateTransaction(tx, { commitment: 'processed', sigVerify: false })
+        if (sim.value.err) {
+          const logs = sim.value.logs ?? []
+          const err = sim.value.err
+          console.log('[burn/sim failed]', label, err, logs.slice(-12))
+          return { ok: false as const, err, errStr: stringifyErr(err), logs }
+        }
+        console.log('[burn/sim ok]', label)
+        return { ok: true as const }
+      } catch (e: any) {
+        const eStr = stringifyErr(e)
+        console.log('[burn/sim threw]', label, eStr)
+        // IMPORTANT : ne bloque pas l’envoi, mais renvoie l’erreur pour que l’autosplit puisse décider
+        return { ok: false as const, err: e, errStr: eStr }
       }
-      return { ok: true as const }
     },
     [connection],
   )
@@ -120,34 +154,31 @@ export function useBurnNfts() {
     async (
       owner: PublicKey,
       assetId: PublicKey,
-    ): Promise<{
-      withCollection: TransactionInstruction[]
-      withoutCollection: TransactionInstruction[]
-    }> => {
+    ): Promise<{ withCollection: TransactionInstruction[]; withoutCollection: TransactionInstruction[] }> => {
       const ownerU = umiPk(owner.toBase58())
       const assetU = umiPk(assetId.toBase58())
       umi.use(signerIdentity(createNoopSigner(ownerU)))
 
       const asset = await coreFetchAsset(umi, assetU)
 
-      // builder sans collection
       const bNo = coreBurn(umi, { asset })
-      const iNo = ((bNo as any).items as { instruction: any }[]).map((it) => toWeb3JsInstruction(it.instruction))
+      const withoutCollection = ((bNo as any).items as { instruction: any }[]).map((it) =>
+        toWeb3JsInstruction(it.instruction),
+      )
 
-      // builder avec collection (si résoluble)
-      let iYes: TransactionInstruction[] = []
+      let withCollection: TransactionInstruction[] = []
       try {
         const collAddr = coreCollectionAddress(asset)
         if (collAddr) {
           const collection = await coreFetchCollection(umi, collAddr)
           const bYes = coreBurn(umi, { asset, collection })
-          iYes = ((bYes as any).items as { instruction: any }[]).map((it) => toWeb3JsInstruction(it.instruction))
+          withCollection = ((bYes as any).items as { instruction: any }[]).map((it) =>
+            toWeb3JsInstruction(it.instruction),
+          )
         }
-      } catch {
-        // pas de collection valide
-      }
+      } catch {}
 
-      return { withCollection: iYes, withoutCollection: iNo }
+      return { withCollection, withoutCollection }
     },
     [umi],
   )
@@ -175,11 +206,9 @@ export function useBurnNfts() {
         const edition = findMasterEditionPda(umi, { mint: mintU })
         const tokenRecord = findTokenRecordPda(umi, { mint: mintU, token: tokenU })
 
-        // pNFT si TokenRecord existe
         const trAcc = await umi.rpc.getAccount(tokenRecord[0]).catch(() => null)
         if (!trAcc) return null
 
-        // collection (optionnel)
         let collMintU: ReturnType<typeof umiPk> | undefined
         let collMetadataPda: any | undefined
         if (collectionMint) {
@@ -187,7 +216,6 @@ export function useBurnNfts() {
           collMetadataPda = findMetadataPda(umi, { mint: collMintU })
         }
 
-        // ruleset (optionnel)
         let ruleSetU: ReturnType<typeof umiPk> | undefined
         try {
           const md = await fetchMetadata(umi, mintU)
@@ -237,31 +265,65 @@ export function useBurnNfts() {
     [umi],
   )
 
-  // ---------- final sending (no pre-split on sim fail) ---------------------
+  // ---------- final sending -------------------------------------------------
 
   const sendGroups = useCallback(
     async (owner: PublicKey, groups: Group[][]) => {
       const ok: { mint: string; sig: string }[] = []
+      const queue: Group[][] = [...groups]
 
-      for (const group of groups) {
+      while (queue.length) {
+        const group = queue.shift()!
+
         const ixs: TransactionInstruction[] = [
           ComputeBudgetProgram.setComputeUnitLimit({ units: CB_UNITS }),
           ComputeBudgetProgram.setComputeUnitPrice({ microLamports: PRIORITY_FEE_MICRO_LAMPORTS }),
           ...group.flatMap((g) => g.ixs),
         ]
 
-        // Simule juste pour log (on n’éclate pas si ça échoue)
-        await simulateIxs(owner, ixs, `batch(${group.length})`)
+        console.log('sendGroups — building tx', {
+          groupIndex: groups.length - queue.length,
+          groupsTotal: groups.length,
+          groupLen: group.length,
+          ixsLen: ixs.length,
+        })
 
-        const { context, value } = await connection.getLatestBlockhashAndContext('processed')
-        const msg = new TransactionMessage({
-          payerKey: owner,
-          recentBlockhash: value.blockhash,
-          instructions: ixs,
-        }).compileToV0Message()
-        const tx = new VersionedTransaction(msg)
-        const sig = await signAndSendTransaction(tx, context.slot)
-        ok.push(...group.map(({ mint }) => ({ mint: mint.toBase58(), sig })))
+        // 1) Simu (diagnostic)
+        const simRes = await simulateIxs(owner, ixs, `batch(${group.length})`)
+        console.log('sendGroups — after sim', { ok: simRes.ok, err: simRes.ok ? undefined : simRes.errStr })
+
+        // 2) Trop gros ? on coupe en 2
+        if (!simRes.ok && isTooLargeErr(simRes.errStr ?? simRes.err)) {
+          if (group.length > 1) {
+            const mid = Math.floor(group.length / 2)
+            console.log('sendGroups — tx too large, splitting', group.length, '->', mid, '+', group.length - mid)
+            queue.unshift(group.slice(0, mid), group.slice(mid))
+            continue
+          }
+          console.log('sendGroups — single item still too large, sending anyway')
+        }
+
+        try {
+          console.log('sendGroups — fetching blockhash...')
+          const { context, value } = await connection.getLatestBlockhashAndContext('confirmed')
+          console.log('sendGroups — got blockhash', { slot: context.slot })
+
+          const msg = new TransactionMessage({
+            payerKey: owner,
+            recentBlockhash: value.blockhash,
+            instructions: ixs,
+          }).compileToV0Message()
+          const tx = new VersionedTransaction(msg)
+
+          console.log('sendGroups — calling wallet...', { minContextSlot: context.slot })
+          const sig = await signAndSendTransaction(tx, context.slot)
+          console.log('sendGroups — wallet returned sig', sig)
+
+          ok.push(...group.map(({ mint }) => ({ mint: mint.toBase58(), sig })))
+        } catch (e: any) {
+          console.log('sendGroups — wallet/send error', stringifyErr(e))
+          throw e
+        }
       }
 
       return ok
@@ -281,126 +343,144 @@ export function useBurnNfts() {
 
       for (const it of rawItems) {
         const mint58 = it.mint.toBase58()
-        if (it.isCompressed) {
-          skipped.push({ mint: mint58, reason: 'cNFT not supported' })
-          continue
-        }
-
-        // Core
-        if (it.isCoreHint) {
-          const { withCollection, withoutCollection } = await buildCoreBurnVariants(owner, it.mint)
-          const tries: { name: string; ixs: TransactionInstruction[] }[] = []
-          if (withCollection.length) tries.push({ name: 'core burn (with collection)', ixs: withCollection })
-          if (withoutCollection.length) tries.push({ name: 'core burn (without collection)', ixs: withoutCollection })
-
-          let chosen: TransactionInstruction[] | null = null
-          let lastErr = 'no variants'
-          for (const t of tries) {
-            const res = await simulateIxs(
-              owner,
-              [
-                ComputeBudgetProgram.setComputeUnitLimit({ units: CB_UNITS }),
-                ComputeBudgetProgram.setComputeUnitPrice({ microLamports: PRIORITY_FEE_MICRO_LAMPORTS }),
-                ...t.ixs,
-              ],
-              t.name,
-            )
-            if (res.ok) {
-              chosen = t.ixs
-              break
-            }
-            lastErr = JSON.stringify(res.err)
-          }
-          if (!chosen) {
-            skipped.push({ mint: mint58, reason: `core burn simulation failed (${lastErr})` })
+        try {
+          if (it.isCompressed) {
+            skipped.push({ mint: mint58, reason: 'cNFT not supported' })
             continue
           }
-          prepared.push({ mint: it.mint, ixs: chosen, kind: 'core' })
-          continue
-        }
 
-        // Mint program → ATA
-        let programId = it.programIdHint ?? (await getMintProgramId(it.mint))
-
-        let tokenAccount = it.tokenAccount
-        if (!tokenAccount) {
-          tokenAccount = (await resolveAtaByMintProgram(it.mint, owner, programId)).ata
-        } else {
-          const ai = await connection.getAccountInfo(tokenAccount, { commitment: 'processed' })
-          if (!ai) {
-            skipped.push({ mint: mint58, reason: 'token account not found' })
-            continue
-          }
-          const ataProgram = ai.owner.equals(TOKEN_2022_PROGRAM_ID) ? TOKEN_2022_PROGRAM_ID : TOKEN_PROGRAM_ID
-          if (!ataProgram.equals(programId)) {
-            tokenAccount = (await resolveAtaByMintProgram(it.mint, owner, programId)).ata
-          }
-        }
-
-        // pNFT?
-        let pnftIxs: TransactionInstruction[] | null = null
-        if (it.isPnftHint) {
-          const variants = await buildPnftVariants(owner, it.mint, tokenAccount!, it.collectionMintHint)
-          if (variants) {
-            const seq = it.frozenHint
-              ? [
-                  { name: 'unlock+burn (no rules)', ixs: variants.unlockThenBurn },
-                  { name: 'unlock+burn (with rules)', ixs: variants.unlockThenBurnWithRules },
-                  { name: 'burn only (no rules)', ixs: variants.burnOnly },
-                  { name: 'burn only (with rules)', ixs: variants.burnOnlyWithRules },
-                ]
-              : [
-                  { name: 'burn only (no rules)', ixs: variants.burnOnly },
-                  { name: 'burn only (with rules)', ixs: variants.burnOnlyWithRules },
-                  { name: 'unlock+burn (no rules)', ixs: variants.unlockThenBurn },
-                  { name: 'unlock+burn (with rules)', ixs: variants.unlockThenBurnWithRules },
-                ]
-            for (const cand of seq) {
-              if (!cand.ixs || cand.ixs.length === 0) continue
-              const sim = await simulateIxs(
+          // ----- Core
+          if (it.isCoreHint) {
+            try {
+              const { withCollection, withoutCollection } = await buildCoreBurnVariants(owner, it.mint)
+              const chosen = (withCollection.length ? withCollection : withoutCollection) ?? []
+              if (!chosen.length) {
+                skipped.push({ mint: mint58, reason: 'core burn: no viable instructions' })
+                continue
+              }
+              // simu pour log (non bloquante)
+              await simulateIxs(
                 owner,
                 [
                   ComputeBudgetProgram.setComputeUnitLimit({ units: CB_UNITS }),
                   ComputeBudgetProgram.setComputeUnitPrice({ microLamports: PRIORITY_FEE_MICRO_LAMPORTS }),
-                  ...cand.ixs,
+                  ...chosen,
                 ],
-                cand.name,
+                'core-pick',
               )
-              if (sim.ok) {
-                pnftIxs = cand.ixs
-                break
-              }
+              prepared.push({ mint: it.mint, ixs: chosen, kind: 'core' })
+            } catch (e: any) {
+              skipped.push({ mint: mint58, reason: `core build failed: ${e?.message ?? 'unknown'}` })
             }
-            if (!pnftIxs) {
-              skipped.push({ mint: mint58, reason: 'pNFT burn simulation failed' })
+            continue
+          }
+
+          // ----- SPL / pNFT
+          let programId = it.programIdHint ?? (await getMintProgramId(it.mint))
+
+          let tokenAccount = it.tokenAccount
+          if (!tokenAccount) {
+            tokenAccount = (await resolveAtaByMintProgram(it.mint, owner, programId)).ata
+          } else {
+            const ai = await connection.getAccountInfo(tokenAccount, { commitment: 'processed' })
+            if (!ai) {
+              skipped.push({ mint: mint58, reason: 'token account not found' })
               continue
             }
+            const ataProgram = ai.owner.equals(TOKEN_2022_PROGRAM_ID) ? TOKEN_2022_PROGRAM_ID : TOKEN_PROGRAM_ID
+            if (!ataProgram.equals(programId)) {
+              tokenAccount = (await resolveAtaByMintProgram(it.mint, owner, programId)).ata
+            }
           }
-        }
 
-        if (pnftIxs) {
-          prepared.push({ mint: it.mint, ixs: [...pnftIxs], kind: 'pnft' })
-        } else {
-          prepared.push({
-            mint: it.mint,
-            kind: 'spl',
-            ixs: [
-              createBurnInstruction(tokenAccount!, it.mint, owner, 1n, [], programId),
-              createCloseAccountInstruction(tokenAccount!, owner, owner, [], programId),
-            ],
-          })
+          let pnftIxs: TransactionInstruction[] | null = null
+          if (it.isPnftHint) {
+            const variants = await buildPnftVariants(owner, it.mint, tokenAccount!, it.collectionMintHint)
+            if (variants) {
+              // ---- Essaye d’abord BURN ONLY (with rules → no rules)
+              const order = [
+                { name: 'burn only (with rules)', ixs: variants.burnOnlyWithRules },
+                { name: 'burn only (no rules)', ixs: variants.burnOnly },
+                { name: 'unlock+burn (with rules)', ixs: variants.unlockThenBurnWithRules },
+                { name: 'unlock+burn (no rules)', ixs: variants.unlockThenBurn },
+              ]
+
+              let lastErr: any = null
+              for (const cand of order) {
+                if (!cand.ixs || cand.ixs.length === 0) continue
+                const sim = await simulateIxs(
+                  owner,
+                  [
+                    ComputeBudgetProgram.setComputeUnitLimit({ units: CB_UNITS }),
+                    ComputeBudgetProgram.setComputeUnitPrice({ microLamports: PRIORITY_FEE_MICRO_LAMPORTS }),
+                    ...cand.ixs,
+                  ],
+                  `pnft-pick ${cand.name}`,
+                )
+                if (sim.ok) {
+                  pnftIxs = cand.ixs
+                  break
+                }
+                lastErr = sim.err
+                // Si c’est un chemin "unlock" et qu’on voit 0x9e (InvalidAuthorityType), évite les autres "unlock"
+                if (/\"Custom\"\s*:\s*158/.test(JSON.stringify(lastErr)) && cand.name.startsWith('unlock')) {
+                  // on a déjà tenté burn-only en premier; on n’insiste pas sur unlock
+                  break
+                }
+              }
+
+              // fallback: même si la simu a échoué, on envoie le meilleur candidat burn-only
+              if (!pnftIxs) {
+                pnftIxs =
+                  variants.burnOnlyWithRules ??
+                  variants.burnOnly ??
+                  variants.unlockThenBurnWithRules ??
+                  variants.unlockThenBurn
+              }
+
+              if (!pnftIxs || pnftIxs.length === 0) {
+                skipped.push({ mint: mint58, reason: 'pNFT: no viable instructions' })
+                continue
+              }
+            }
+          }
+
+          if (pnftIxs) {
+            prepared.push({ mint: it.mint, ixs: [...pnftIxs], kind: 'pnft' })
+          } else {
+            // Standard SPL / Token-2022
+            prepared.push({
+              mint: it.mint,
+              kind: 'spl',
+              ixs: [
+                createBurnInstruction(tokenAccount!, it.mint, owner, 1n, [], programId),
+                createCloseAccountInstruction(tokenAccount!, owner, owner, [], programId),
+              ],
+            })
+          }
+        } catch (e: any) {
+          skipped.push({ mint: mint58, reason: `error: ${e?.message ?? 'unknown'}` })
         }
       }
+      console.log(
+        'burn debug — prepared',
+        prepared.map((p) => ({ mint: p.mint.toBase58(), kind: p.kind, ixCount: p.ixs.length })),
+        'skipped=',
+        skipped,
+      )
 
-      // -------- pack groups preserving selection order --------
+      // -------- grouping
       const hasHeavy = prepared.some((p) => p.kind !== 'spl')
       const MAX_PER_TX = hasHeavy ? 6 : 16
 
       const groups: Group[][] = []
       for (let i = 0; i < prepared.length; i += MAX_PER_TX) {
         const slice = prepared.slice(i, i + MAX_PER_TX).map(({ mint, ixs }) => ({ mint, ixs }))
-        groups.push(slice)
+        if (slice.length) groups.push(slice)
       }
+
+      if (groups.length === 0) return { ok: [], skipped }
+      console.log('mutateAsync — groups', groups.length, 'size per tx target =', MAX_PER_TX)
 
       const ok = await sendGroups(owner, groups)
       return { ok, skipped }
@@ -410,10 +490,10 @@ export function useBurnNfts() {
       connection,
       getMintProgramId,
       resolveAtaByMintProgram,
-      simulateIxs,
       buildPnftVariants,
       buildCoreBurnVariants,
       sendGroups,
+      simulateIxs,
     ],
   )
 
