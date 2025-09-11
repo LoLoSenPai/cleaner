@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { View, Pressable } from 'react-native'
+import { View, Pressable, ActivityIndicator } from 'react-native'
 import { useRouter } from 'expo-router'
 import Svg, { Defs, LinearGradient as SvgGrad, Stop, Path, Rect } from 'react-native-svg'
 import { AppView } from '@/components/app-view'
@@ -11,12 +11,15 @@ import { AccountUiBalance } from '@/components/account/account-ui-balance'
 import { useWalletUi } from '@/components/solana/use-wallet-ui'
 import { BaseButton } from '@/components/solana/base-button'
 import { useEnsurePortfolio } from '@/utils/portfolio-cache'
+import { useCleanAll } from '@/hooks/use-clean-all'
 
 export default function HomeScreen() {
   const { account } = useWalletUi()
   const router = useRouter()
   const s = useCleanerSummary()
+  const cleanAll = useCleanAll(account?.publicKey)
   const [sheetOpen, setSheetOpen] = useState(false)
+  const [cleaning, setCleaning] = useState(false)
   const owner = account?.publicKey?.toBase58()
 
   useEnsurePortfolio(owner)
@@ -73,22 +76,69 @@ export default function HomeScreen() {
           size="lg"
           fullWidth
           iconName="wand.and.stars"
-          label="Clean All"
+          label={cleaning ? 'Cleaning…' : 'Clean All'}
+          disabled={cleaning}
           onPress={() => setSheetOpen(true)}
         />
       </View>
 
       <CleanAllSheet
         visible={sheetOpen}
-        onClose={() => setSheetOpen(false)}
-        stats={{ empty: s.emptyAccounts, estRent: s.estRent, dust: s.dustCount, dustEst: s.dustEst, spam: s.spamNfts }}
-        onConfirm={(opts) => {
+        onClose={() => cleaning ? null : setSheetOpen(false)}
+        stats={{ empty: s.emptyAccounts, estRent: s.estRent, dust: s.dustCount, dustEst: s.dustEst }}
+        initialThreshold={2}
+        onConfirm={async ({ close, swap, threshold }) => {
           setSheetOpen(false)
-          if (opts.close) router.push('/(tabs)/account/clean')
-          else if (opts.swap) router.push('/(tabs)/swap')
-          // else if (opts.burn) router.push('/(tabs)/nfts')
+          setCleaning(true)
+          try {
+            await cleanAll.run({ doSwap: swap, doClose: close, threshold })
+          } finally {
+            setCleaning(false)
+          }
         }}
       />
+
+      {/* === PROGRESS OVERLAY === */}
+      {cleaning && (
+        <View
+          pointerEvents="auto"
+          style={{
+            position: 'absolute',
+            top: 0, right: 0, bottom: 0, left: 0,
+            backgroundColor: 'rgba(0,0,0,0.55)',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+          }}
+        >
+          <View
+            style={{
+              backgroundColor: '#16161d',
+              borderRadius: 16,
+              padding: 20,
+              minWidth: 240,
+              alignItems: 'center',
+              shadowColor: '#000',
+              shadowOpacity: 0.3,
+              shadowRadius: 12,
+              elevation: 8,
+            }}
+          >
+            <ActivityIndicator />
+            <AppText style={{ color: '#fff', fontWeight: '700', marginTop: 8 }}>
+              {cleanAll.step === 'swap' ? 'Swapping dust…'
+                : cleanAll.step === 'close' ? 'Closing accounts…'
+                  : cleanAll.step === 'done' ? 'Done'
+                    : 'Preparing…'}
+            </AppText>
+            {!!cleanAll.log && (
+              <AppText style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, textAlign: 'center', marginTop: 4 }}>
+                {cleanAll.log}
+              </AppText>
+            )}
+          </View>
+        </View>
+      )}
     </AppView>
   )
 }

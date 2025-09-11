@@ -13,18 +13,18 @@
 
 # Add any project specific keep options here:
 
-# Solana Mobile Wallet Adapter
+# --- Wallet Adapter & common deps (kept via config plugin) ---
 -keep class com.solana.mobilewalletadapter.** { *; }
 -keep interface com.solana.mobilewalletadapter.** { *; }
 -dontwarn com.solana.mobilewalletadapter.**
 
-# Parfois packagé ainsi :
 -keep class com.solanamobile.** { *; }
 -keep interface com.solanamobile.** { *; }
 -dontwarn com.solanamobile.**
 
-# (optionnel) libs communes
 -keep class kotlinx.** { *; }
 -dontwarn kotlinx.**
+
 -keep class org.json.** { *; }
 -dontwarn org.json.**
+# --- end block ---

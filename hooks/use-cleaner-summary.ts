@@ -1,11 +1,11 @@
+//hooks/use-cleaner-summary.ts
 import { useMemo } from 'react'
 import { PublicKey } from '@solana/web3.js'
 import { useWalletUi } from '@/components/solana/use-wallet-ui'
 import { useGetTokenAccounts } from '@/components/account/use-get-token-accounts'
-import { useHeliusAssets } from '@/hooks/use-helius-assets'
-import { parseHeliusNFTs } from '@/utils/parse-helius-assets'
+// import { useHeliusAssets } from '@/hooks/use-helius-assets'
+// import { parseHeliusNFTs } from '@/utils/parse-helius-assets'
 
-// rent récupérable / compte (même valeur que ta feature)
 const RENT_RECOVERED_PER_ACCOUNT = 0.00203928
 
 export function useCleanerSummary() {
@@ -16,9 +16,9 @@ export function useCleanerSummary() {
     const { data: tokenAccounts } = useGetTokenAccounts({ address: address! })
 
     // NFTs
-    const { data: heliusData } = useHeliusAssets(address!)
-    const allParsed = useMemo(() => parseHeliusNFTs(heliusData?.nfts ?? []), [heliusData])
-    const spamNfts = useMemo(() => allParsed.filter(n => n.isSpam || n.isCompressed === false && n.name?.toLowerCase().includes('airdropped')).length, [allParsed])
+    // const { data: heliusData } = useHeliusAssets(address!)
+    // const allParsed = useMemo(() => parseHeliusNFTs(heliusData?.nfts ?? []), [heliusData])
+    // const spamNfts = useMemo(() => allParsed.filter(n => n.isSpam || n.isCompressed === false && n.name?.toLowerCase().includes('airdropped')).length, [allParsed])
 
     // empty token accounts
     const emptyAccounts = useMemo(() => {
@@ -44,6 +44,6 @@ export function useCleanerSummary() {
         estRent,
         dustCount,
         dustEst,
-        spamNfts,
+        // spamNfts,
     }
 }

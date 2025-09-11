@@ -1,17 +1,18 @@
-import React, { useState, useMemo, useCallback } from 'react'
-import { View } from 'react-native'
-import { PublicKey } from '@solana/web3.js'
-import { AppView } from '@/components/app-view'
 import { AppText } from '@/components/app-text'
+import { AppView } from '@/components/app-view'
+import NftList from '@/components/nfts/nft-list'
+import { BaseButton } from '@/components/solana/base-button'
 import { useWalletUi } from '@/components/solana/use-wallet-ui'
+import ConfirmDialog from '@/components/ui/confirm-dialog'
+import Segmented from '@/components/ui/segmented'
+import { useBurnNfts } from '@/hooks/use-burn-nfts'
 import { useHeliusAssets } from '@/hooks/use-helius-assets'
 import { parseHeliusNFTs } from '@/utils/parse-helius-assets'
-import NftList from '@/components/nfts/nft-list'
-import Segmented from '@/components/ui/segmented'
-import { BaseButton } from '@/components/solana/base-button'
-import { useBurnNfts } from '@/hooks/use-burn-nfts'
+import { TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID } from '@solana/spl-token'
+import { PublicKey } from '@solana/web3.js'
+import React, { useCallback, useMemo, useState } from 'react'
+import { View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import ConfirmDialog from '@/components/ui/confirm-dialog'
 
 export default function NftsScreen() {
   const { account } = useWalletUi()
@@ -35,7 +36,17 @@ export default function NftsScreen() {
       !isCnftTab
         ? nfts
           .filter(n => selectedIds.includes(n.id))
-          .map(n => ({ mint: new PublicKey(n.id) }))
+          .map(n => ({
+            mint: new PublicKey(n.id),
+            isCompressed: n.isCompressed,
+            tokenAccount: n.associatedTokenAddress ? new PublicKey(n.associatedTokenAddress) : undefined,
+            isPnftHint: n.tokenStandard === 'ProgrammableNonFungible',
+            frozenHint: n.frozen === true,
+            isCoreHint: n.isCore === true,
+            programIdHint:
+              n.tokenProgramAddress === 'TokenzQdYGrDSDXi6MNLxwZenoJBNb8wDgib6A5nSJ8' ? TOKEN_2022_PROGRAM_ID : TOKEN_PROGRAM_ID,
+            collectionMintHint: n.collection ? new PublicKey(n.collection) : undefined,
+          }))
         : [],
     [isCnftTab, nfts, selectedIds],
   )
@@ -51,16 +62,41 @@ export default function NftsScreen() {
 
   const doBurn = useCallback(async () => {
     if (!selectedToBurn.length) return
-    setConfirmOpen(false)
-    setBusy(true)
+    setConfirmOpen(false); setBusy(true)
     try {
-      await burnNfts(selectedToBurn)
+      // --- DEBUG ICI ---
+      {
+        const heliusHints = nfts
+          .filter(n => selectedIds.includes(n.id))
+          .map(n => ({
+            id: n.id,
+            tokenProgram: n.tokenProgramAddress,
+            ata: n.associatedTokenAddress,
+            standard: n.tokenStandard,
+            isCore: (n as any).isCore ?? false,
+          }))
+        const payload = selectedToBurn.map(i => ({
+          mint: i.mint.toBase58(),
+          isCompressed: i.isCompressed ?? false,
+          tokenAccount: i.tokenAccount?.toBase58(),
+          isPnftHint: i.isPnftHint ?? false,
+          isCoreHint: i.isCoreHint ?? false,
+          frozenHint: i.frozenHint ?? false,
+          programIdHint: i.programIdHint?.toBase58(),
+        }))
+        console.log('burn debug — helius hints:', heliusHints)
+        console.log('burn debug — ts:', Date.now(), 'payload:', JSON.stringify(payload))
+      }
+      // ------------------
+
+      const res = await burnNfts(selectedToBurn) // { ok, skipped }
+      console.log(`✅ burned=${res.ok.length} | skipped=${res.skipped.length}`, res)
       setSelectedIds([])
       await refetch()
     } finally {
       setBusy(false)
     }
-  }, [burnNfts, refetch, selectedToBurn])
+  }, [burnNfts, refetch, selectedToBurn, nfts, selectedIds])
 
   const selectedCount = selectedToBurn.length
   const currentLabel = isCnftTab ? 'cNFTs' : 'NFTs'

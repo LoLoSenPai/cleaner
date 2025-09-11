@@ -4,11 +4,11 @@ import { clusterApiUrl } from '@solana/web3.js'
 import { HELIUS_ENDPOINT } from '@/utils/env'
 
 export class AppConfig {
-  static name = 'Wallet Cleaner'
+  static name = 'Clyra - Wallet Cleaner'
   static uri = 'https://clyra-app.lololabs.xyz'
-  static readonly icon: string | undefined = undefined
+  static icon = "favicon.ico"
   static siws = {
-    statement: 'Sign in to Wallet Cleaner',
+    statement: 'Sign in to Clyra',
   }
   static clusters: Cluster[] = [
     {

@@ -13,6 +13,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { LinearGradient } from 'expo-linear-gradient'
 import { ActivityIndicator, Pressable, Text, StyleSheet } from 'react-native'
 import { useGetTokenAccounts, useGetTokenAccountsInvalidate } from './use-get-token-accounts'
+import { useGetBalanceInvalidate } from '@/components/account/use-get-balance'
+import { refreshPortfolio } from '@/utils/portfolio-cache'
 
 const RENT_RECOVERED_PER_ACCOUNT = 0.00203928
 
@@ -20,7 +22,8 @@ export function AccountFeatureCleaner({ address }: { address: PublicKey }) {
     const connection = useConnection()
     const [isSimulating, setIsSimulating] = useState(true)
     const { signAndSendTransaction } = useWalletUi()
-    const invalidate = useGetTokenAccountsInvalidate({ address })
+    const invalidateTokenAccs = useGetTokenAccountsInvalidate({ address })
+    const invalidateBalance = useGetBalanceInvalidate({ address })
 
     const { data: tokenAccounts, isLoading, isRefetching } = useGetTokenAccounts({ address })
     const [isClosing, setIsClosing] = useState(false)
@@ -126,13 +129,18 @@ export function AccountFeatureCleaner({ address }: { address: PublicKey }) {
             await connection.confirmTransaction({ signature, ...latest }, 'confirmed')
 
             console.log(`✅ Closed ${closableAccounts.length} accounts, tx: ${signature}`)
-            await invalidate()
+            try { await refreshPortfolio(address.toBase58()) } catch { }
+
+            await Promise.all([
+                invalidateTokenAccs(),
+                invalidateBalance(),
+            ])
         } catch (err) {
             console.warn('❌ Failed to close accounts:', err)
         } finally {
             setIsClosing(false)
         }
-    }, [closableAccounts, address, connection, signAndSendTransaction, invalidate])
+    }, [closableAccounts, address, connection, signAndSendTransaction, invalidateTokenAccs, invalidateBalance])
 
     return (
         <AppView style={{ gap: 16 }}>

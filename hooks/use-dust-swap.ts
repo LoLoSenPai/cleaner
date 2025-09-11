@@ -7,6 +7,7 @@ import { hasFreshSnapshot, ensurePortfolio, refreshPortfolio } from '@/utils/por
 import { useConnection } from '@/components/solana/solana-provider'
 import { Buffer } from 'buffer'
 import { useGetTokenAccountsInvalidate } from '@/components/account/use-get-token-accounts'
+import { useGetBalanceInvalidate } from '@/components/account/use-get-balance'
 
 const WSOL_MINT = 'So11111111111111111111111111111111111111112'
 
@@ -59,6 +60,10 @@ export function useDustSwap() {
     address: account?.publicKey as PublicKey,
   })
 
+  const invalidateBalance = useGetBalanceInvalidate({
+    address: account?.publicKey as PublicKey,
+  })
+
   // bootstrap: ensure portfolio on owner change
   useEffect(() => {
     if (!owner) return
@@ -103,6 +108,115 @@ export function useDustSwap() {
   useEffect(() => {
     refresh(1)
   }, [refresh])
+
+  const buildItemsBelow = useCallback(
+    async (thresholdUsd: number): Promise<PreviewItem[]> => {
+      if (!owner) return []
+      const snap = await ensurePortfolio(owner, { force: true }) // fresh
+      return snap.tokens
+        .filter((t) => t.usd > 0 && t.usd < thresholdUsd)
+        .map((t) => ({
+          mint: t.mint,
+          symbol: t.symbol ?? t.mint.slice(0, 4),
+          amountUi: t.amountUi,
+          amountBaseStr: t.amountBaseStr ?? String(Math.floor(t.amountUi * 10 ** (t.decimals ?? 0))),
+          decimals: t.decimals ?? 0,
+          usdEst: t.usd,
+          logoURI: t.logoURI,
+        }))
+        .sort((a, b) => a.usdEst - b.usdEst)
+    },
+    [owner],
+  )
+
+  const swapAllBelowUsdFresh = useCallback(
+    async (thresholdUsd: number): Promise<boolean> => {
+      if (!account?.publicKey) return false
+      setBusy(true)
+      setLastRun(null)
+
+      const run: RunResult = { ok: [], fail: [] }
+      try {
+        const items = await buildItemsBelow(thresholdUsd)
+        if (!items.length) return false
+
+        const minContextSlot = await connection.getSlot()
+
+        for (const p of items) {
+          try {
+            const quoteRes = await fetch(
+              `https://lite-api.jup.ag/swap/v1/quote?inputMint=${encodeURIComponent(
+                p.mint,
+              )}&outputMint=${WSOL_MINT}&amount=${encodeURIComponent(p.amountBaseStr)}&slippage=1`,
+              { headers: { accept: 'application/json' } },
+            )
+            const quoteJson = JSON.parse(await quoteRes.text())
+            if (!quoteJson?.outAmount || Number(quoteJson.outAmount) <= 0) {
+              throw new Error('No route / output is zero')
+            }
+
+            const swapRes = await fetch('https://lite-api.jup.ag/swap/v1/swap', {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({
+                quoteResponse: quoteJson,
+                userPublicKey: account.publicKey.toBase58(),
+                wrapAndUnwrapSol: true,
+                dynamicComputeUnitLimit: true,
+                prioritizationFeeLamports: {
+                  priorityLevelWithMaxLamports: { maxLamports: 1_000_000, priorityLevel: 'high' },
+                },
+              }),
+            })
+            const swapJson = JSON.parse(await swapRes.text())
+            if (!swapJson?.swapTransaction) throw new Error(String(swapJson?.error ?? 'No swapTransaction'))
+
+            const tx = VersionedTransaction.deserialize(Buffer.from(swapJson.swapTransaction, 'base64'))
+            const sig = await signAndSendTransaction(tx, minContextSlot)
+            run.ok.push({ mint: p.mint, symbol: p.symbol, sig })
+            await delay(150)
+          } catch (e: any) {
+            const reason = prettyReason(e)
+            run.fail.push({ mint: p.mint, symbol: p.symbol, reason })
+            if (isUserDecline(e)) break
+            await delay(200)
+          }
+        }
+
+        setLastRun(run)
+
+        if (run.ok.length) {
+          await Promise.all(run.ok.map(({ sig }) => connection.confirmTransaction(sig, 'confirmed').catch(() => null)))
+        }
+
+        // garder l’UI à jour
+        if (owner) {
+          try {
+            await refreshPortfolio(owner)
+          } catch {}
+        }
+        await Promise.all([invalidateTokenAccounts(), invalidateBalance()])
+        await refresh(thresholdUsd)
+
+        return run.ok.length > 0
+      } catch (e: any) {
+        setError(String(e?.message ?? e))
+        return false
+      } finally {
+        setBusy(false)
+      }
+    },
+    [
+      account?.publicKey,
+      connection,
+      signAndSendTransaction,
+      buildItemsBelow,
+      refresh,
+      owner,
+      invalidateTokenAccounts,
+      invalidateBalance,
+    ],
+  )
 
   const swapAllBelowUsd = useCallback(
     async (thresholdUsd: number): Promise<boolean> => {
@@ -180,7 +294,7 @@ export function useDustSwap() {
           } catch {}
         }
 
-        await invalidateTokenAccounts()
+        await Promise.all([invalidateTokenAccounts(), invalidateBalance()])
 
         await refresh(thresholdUsd)
 
@@ -192,7 +306,16 @@ export function useDustSwap() {
         setBusy(false)
       }
     },
-    [account?.publicKey, preview, connection, signAndSendTransaction, refresh, owner, invalidateTokenAccounts],
+    [
+      account?.publicKey,
+      preview,
+      connection,
+      signAndSendTransaction,
+      refresh,
+      owner,
+      invalidateTokenAccounts,
+      invalidateBalance,
+    ],
   )
 
   return {
@@ -204,5 +327,6 @@ export function useDustSwap() {
     error,
     refresh,
     swapAllBelowUsd,
+    swapAllBelowUsdFresh,
   }
 }

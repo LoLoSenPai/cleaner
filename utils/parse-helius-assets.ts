@@ -19,6 +19,14 @@ export type ParsedHeliusNFT = {
   image?: string
   jsonUri?: string
   isCompressed?: boolean
+  isCore?: boolean
+
+  // === Hints pour le burn ===
+  tokenProgramAddress?: string // ex: Tokenkeg... (SPL) ou TokenzQd... (Token-2022)
+  associatedTokenAddress?: string // ATA exact côté Helius
+  tokenStandard?: string // 'ProgrammableNonFungible' | 'NonFungible' | ...
+  frozen?: boolean
+  delegated?: boolean
 }
 
 export function parseHeliusTokens(assets: HeliusAsset[]): ParsedHeliusToken[] {
@@ -52,5 +60,13 @@ export function parseHeliusNFTs(assets: HeliusAsset[]): ParsedHeliusNFT[] {
       jsonUri: a?.content?.json_uri || undefined,
       collection: a?.grouping?.find((g) => g.group_key === 'collection')?.group_value,
       isCompressed: a?.compression?.compressed ?? false,
+
+      // hints Helius
+      tokenProgramAddress: a?.token_info?.token_program || undefined,
+      associatedTokenAddress: a?.token_info?.associated_token_address || undefined,
+      tokenStandard: a?.content?.metadata?.token_standard || undefined,
+      isCore: a?.interface === 'MplCoreAsset',
+      frozen: !!a?.ownership?.frozen,
+      delegated: !!a?.ownership?.delegated,
     }))
 }

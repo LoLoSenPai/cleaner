@@ -29,6 +29,11 @@
   "version": "1.0.0",
   "dependencies": {
     "@expo/vector-icons": "^14.1.0",
+    "@metaplex-foundation/mpl-core": "^1.6.0",
+    "@metaplex-foundation/mpl-token-metadata": "^3.4.0",
+    "@metaplex-foundation/umi": "^1.4.1",
+    "@metaplex-foundation/umi-bundle-defaults": "^1.4.1",
+    "@metaplex-foundation/umi-web3js-adapters": "^1.4.1",
     "@onsol/tldparser": "^1.0.8",
     "@react-native-async-storage/async-storage": "^2.1.2",
     "@react-native-clipboard/clipboard": "^1.16.2",
@@ -83,6 +88,8 @@
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
+    "@expo/cli": "^0.24.20",
+    "@expo/server": "^0.6.3",
     "@types/react": "~19.0.10",
     "eslint": "^9.25.0",
     "eslint-config-expo": "~9.2.0",
