@@ -1,10 +1,10 @@
 // hooks/use-helius-assets.ts
-import { useQuery } from '@tanstack/react-query'
-import { PublicKey } from '@solana/web3.js'
-import { HELIUS_ENDPOINT } from '@/utils/env'
-import { HeliusAsset } from '@/types/helius'
 import { useConnection } from '@/components/solana/solana-provider'
-import { resolveNftMeta, pickImageFromHeliusAsset, type ResolvedNftMeta } from '@/utils/resolve-nft-meta'
+import { HeliusAsset } from '@/types/helius'
+import { HELIUS_ENDPOINT } from '@/utils/env'
+import { pickImageFromHeliusAsset, resolveNftMeta, type ResolvedNftMeta } from '@/utils/resolve-nft-meta'
+import { PublicKey } from '@solana/web3.js'
+import { useQuery } from '@tanstack/react-query'
 
 export function useHeliusAssets(owner: PublicKey) {
   const connection = useConnection()
@@ -45,11 +45,26 @@ export function useHeliusAssets(owner: PublicKey) {
       // Enrich: image/name/symbol best-effort (SGT + edge collections)
       const nfts = await Promise.all(
         nftsRaw.map(async (a) => {
-          const hasImg = !!pickImageFromHeliusAsset(a) || !!a?.content?.links?.image
-          const hasName = !!a?.content?.metadata?.name
-          const hasSymbol = !!a?.content?.metadata?.symbol
+          const isCompressed = (a as any)?.compression?.compressed === true || a.interface === 'CompressedNFT'
 
-          if (hasImg && hasName && hasSymbol) return a
+          const bestImg = pickImageFromHeliusAsset(a)
+          const hasImg = !!bestImg || !!a?.content?.links?.image
+          const hasName = !!a?.content?.metadata?.name
+
+          if (isCompressed) {
+            if (bestImg && bestImg !== a?.content?.links?.image) {
+              return {
+                ...a,
+                content: {
+                  ...(a.content ?? {}),
+                  links: { ...(a.content?.links ?? {}), image: bestImg },
+                },
+              } as HeliusAsset
+            }
+            return a
+          }
+
+          if (hasImg && hasName) return a
 
           let meta: ResolvedNftMeta = {}
           try {

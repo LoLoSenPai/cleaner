@@ -73,8 +73,8 @@ export async function resolveNftMeta(connection: Connection, asset: HeliusLikeAs
   const symbolFast = asset?.content?.metadata?.symbol
   const jsonUriFast = asset?.content?.json_uri
 
-  if (imageFast && nameFast && symbolFast) {
-    return { image: imageFast, name: nameFast, symbol: symbolFast, jsonUri: jsonUriFast }
+  if (imageFast && nameFast) {
+    return { image: imageFast, name: nameFast, jsonUri: jsonUriFast }
   }
 
   // Try content.json_uri JSON
