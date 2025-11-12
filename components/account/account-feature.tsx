@@ -1,47 +1,50 @@
-//components/account/account-feature.tsx
-import { useWalletUi } from '@/components/solana/use-wallet-ui'
-import { AppText } from '@/components/app-text'
-import { AppView } from '@/components/app-view'
-import { AppPage } from '@/components/app-page'
-import { AccountUiButtons } from './account-ui-buttons'
+// components/account/account-feature.tsx
 import { AccountUiBalance } from '@/components/account/account-ui-balance'
 import { AccountUiTokenAccounts } from '@/components/account/account-ui-token-accounts'
-import { RefreshControl, ScrollView, View } from 'react-native'
-import { useCallback, useState } from 'react'
 import { useGetBalanceInvalidate } from '@/components/account/use-get-balance'
-import { PublicKey } from '@solana/web3.js'
 import { useGetTokenAccountsInvalidate } from '@/components/account/use-get-token-accounts'
-import { WalletUiButtonConnect } from '@/components/solana/wallet-ui-button-connect'
+import { AppPage } from '@/components/app-page'
+import { AppText } from '@/components/app-text'
+import { AppView } from '@/components/app-view'
 import { BaseButton } from '@/components/solana/base-button'
-import { useBurnTokens } from '@/hooks/use-burn-tokens'
-import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { useUserDomains } from '@/hooks/use-user-domains'
+import { useWalletUi } from '@/components/solana/use-wallet-ui'
+import { WalletUiButtonConnect } from '@/components/solana/wallet-ui-button-connect'
 import ConfirmDialog from '@/components/ui/confirm-dialog'
+import { useBurnTokens } from '@/hooks/use-burn-tokens'
+import { useUserDomains } from '@/hooks/use-user-domains'
 import { refreshPortfolio } from '@/utils/portfolio-cache'
+import { PublicKey } from '@solana/web3.js'
+import { useCallback, useState } from 'react'
+import { RefreshControl, ScrollView, View } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { AccountUiButtons } from './account-ui-buttons'
 
 type SelectItem = { mint: string; tokenAccount?: string }
-
 const CTA_HEIGHT = 56
 
 export function AccountFeature() {
   const { account } = useWalletUi()
   const owner = account?.publicKey?.toBase58()
   const [refreshing, setRefreshing] = useState(false)
-  const { data: dom } = useUserDomains(account?.publicKey)
+  const { data: dom, status, error } = useUserDomains(account?.publicKey)
   const [confirmOpen, setConfirmOpen] = useState(false)
 
   const invalidateBalance = useGetBalanceInvalidate({ address: account?.publicKey as PublicKey })
   const invalidateTokenAccounts = useGetTokenAccountsInvalidate({ address: account?.publicKey as PublicKey })
 
   const onRefresh = useCallback(async () => {
+    if (refreshing) return
     setRefreshing(true)
-    await Promise.all([
-      owner ? refreshPortfolio(owner) : Promise.resolve(),
-      invalidateBalance(),
-      invalidateTokenAccounts(),
-    ])
-    setRefreshing(false)
-  }, [owner, invalidateBalance, invalidateTokenAccounts])
+    try {
+      await Promise.all([
+        owner ? refreshPortfolio(owner) : Promise.resolve(),
+        invalidateBalance(),
+        invalidateTokenAccounts(),
+      ])
+    } finally {
+      setRefreshing(false)
+    }
+  }, [refreshing, owner, invalidateBalance, invalidateTokenAccounts])
 
   const insets = useSafeAreaInsets()
   const [selected, setSelected] = useState<SelectItem[]>([])
@@ -103,6 +106,7 @@ export function AccountFeature() {
             <AppView disableBg style={{ alignItems: 'center', gap: 4 }}>
               <AccountUiBalance address={account.publicKey} />
 
+              {/* badges */}
               {!!dom?.ordered?.length && (
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, justifyContent: 'center', marginTop: 6 }}>
                   {dom.ordered.map((d) => {
@@ -111,7 +115,6 @@ export function AccountFeature() {
                     const isSaga = d.tld === 'saga'
                     const isPrimarySol = d.tld === 'sol' && d.primary
 
-                    // .skr = green, .saga = purple, primary .sol = blue, others = neutral
                     const bg = isSkr
                       ? 'rgba(114,255,172,0.16)'
                       : isSaga

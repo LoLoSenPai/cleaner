@@ -42,17 +42,23 @@ export default function NftsScreen() {
       !isCnftTab
         ? nfts
           .filter(n => selectedIds.includes(n.id))
-          .map(n => ({
-            mint: new PublicKey(n.id),
-            isCompressed: n.isCompressed,
-            tokenAccount: n.associatedTokenAddress ? new PublicKey(n.associatedTokenAddress) : undefined,
-            isPnftHint: n.tokenStandard === 'ProgrammableNonFungible',
-            frozenHint: n.frozen === true,
-            isCoreHint: n.isCore === true,
-            programIdHint:
-              n.tokenProgramAddress === 'TokenzQdYGrDSDXi6MNLxwZenoJBNb8wDgib6A5nSJ8' ? TOKEN_2022_PROGRAM_ID : TOKEN_PROGRAM_ID,
-            collectionMintHint: n.collection ? new PublicKey(n.collection) : undefined,
-          }))
+          .map(n => {
+            const ts = String(n.tokenStandard ?? '')
+
+            return {
+              mint: new PublicKey(n.id),
+              isCompressed: n.isCompressed,
+              tokenAccount: n.associatedTokenAddress ? new PublicKey(n.associatedTokenAddress) : undefined,
+              isPnftHint: ts === 'ProgrammableNonFungible' || ts === '4',
+              frozenHint: n.frozen === true,
+              isCoreHint: n.isCore === true,
+              programIdHint:
+                n.tokenProgramAddress === 'TokenzQdYGrDSDXi6MNLxwZenoJBNb8wDgib6A5nSJ8'
+                  ? TOKEN_2022_PROGRAM_ID
+                  : TOKEN_PROGRAM_ID,
+              collectionMintHint: n.collection ? new PublicKey(n.collection) : undefined,
+            }
+          })
         : [],
     [isCnftTab, nfts, selectedIds],
   )
