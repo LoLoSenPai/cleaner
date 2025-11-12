@@ -26,7 +26,7 @@ export function AccountFeature() {
   const { account } = useWalletUi()
   const owner = account?.publicKey?.toBase58()
   const [refreshing, setRefreshing] = useState(false)
-  const { data: dom, status, error } = useUserDomains(account?.publicKey)
+  const { data: dom } = useUserDomains(account?.publicKey)
   const [confirmOpen, setConfirmOpen] = useState(false)
 
   const invalidateBalance = useGetBalanceInvalidate({ address: account?.publicKey as PublicKey })

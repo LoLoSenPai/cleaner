@@ -11,19 +11,19 @@ export type UserDomains = { skr: string[]; saga: string[]; solPrimary?: string; 
 const BONFIDA_BASE = 'https://sns-api.bonfida.com'
 const emptyData: UserDomains = { skr: [], saga: [], solPrimary: undefined, ordered: [] }
 
+const wait = (ms: number) => new Promise((r) => setTimeout(r, ms))
+const withTimeout = async <T>(p: Promise<T>, ms: number, label = 'op'): Promise<T> =>
+  Promise.race([p, new Promise<T>((_, rej) => setTimeout(() => rej(new Error(`${label} timeout`)), ms))])
+
 const norm = (list: any[], tld: 'skr' | 'saga') =>
   Array.from(
     new Set(
       (list ?? [])
-        .map((d) => (typeof d === 'string' ? d : d?.domain || d?.name))
+        .map((d: any) => (typeof d === 'string' ? d : d?.domain || d?.name))
         .filter(Boolean)
         .map((n: string) => (n.endsWith('.' + tld) ? n.slice(0, -(tld.length + 1)) : n)),
     ),
   )
-
-const wait = (ms: number) => new Promise((r) => setTimeout(r, ms))
-const withTimeout = async <T>(p: Promise<T>, ms: number, label?: string): Promise<T> =>
-  Promise.race([p, new Promise<T>((_, rej) => setTimeout(() => rej(new Error((label ?? 'op') + ' timeout')), ms))])
 
 async function getSnsFavSol(owner: PublicKey) {
   try {
@@ -38,7 +38,7 @@ async function getSnsFavSol(owner: PublicKey) {
   }
 }
 
-// ⬇️ on passe explicitement un Connection (pas parser.connection)
+// Connexion **explicite**: MainDomain veut un Connection pur
 async function getAnsMainDomain(conn: Connection, owner: PublicKey) {
   try {
     const [mainKey] = findMainDomain(owner)
@@ -46,7 +46,7 @@ async function getAnsMainDomain(conn: Connection, owner: PublicKey) {
     const tldRaw = main.tld?.replace(/^\./, '') || ''
     const tld = (tldRaw === 'skr' || tldRaw === 'saga' ? tldRaw : undefined) as 'skr' | 'saga' | undefined
     if (!tld || !main.domain) return undefined
-    return { name: main.domain, tld: tld as TldTag }
+    return { name: main.domain, tld }
   } catch {
     return undefined
   }
@@ -58,7 +58,8 @@ export function useUserDomains(owner?: PublicKey | null) {
 
   return useQuery<UserDomains, Error>({
     enabled: !!ownerKey,
-    queryKey: ['user-domains', connection.rpcEndpoint, ownerKey],
+    // 🔑 nouvelle clé pour invalider les caches précédents
+    queryKey: ['user-domains-v2', connection.rpcEndpoint, ownerKey],
     initialData: emptyData,
     staleTime: 30_000,
     refetchOnMount: 'always',
@@ -71,30 +72,30 @@ export function useUserDomains(owner?: PublicKey | null) {
       const ownerPk = new PublicKey(ownerKey)
       const parser = new TldParser(connection)
 
-      // 1) main ANS (skr/saga) via Connection explicite
+      // 1) main ANS (skr/saga)
       const ansMain = await getAnsMainDomain(connection, ownerPk)
 
-      // 2) listes ANS par TLD avec petit retry anti-429
+      // 2) listes ANS par TLD (avec mini-retry anti-429)
       let skr: string[] = []
       try {
-        const r1 = await withTimeout(parser.getParsedAllUserDomainsFromTld(ownerPk, 'skr'), 8000, 'skr-parsed')
+        const r1 = await withTimeout(parser.getParsedAllUserDomainsFromTld(ownerPk, 'skr'), 8000, 'skr-1')
         skr = norm(r1 as any[], 'skr')
       } catch {
         await wait(600)
         try {
-          const r2 = await withTimeout(parser.getParsedAllUserDomainsFromTld(ownerPk, 'skr'), 8000, 'skr-parsed-2')
+          const r2 = await withTimeout(parser.getParsedAllUserDomainsFromTld(ownerPk, 'skr'), 8000, 'skr-2')
           skr = norm(r2 as any[], 'skr')
         } catch {}
       }
 
       let saga: string[] = []
       try {
-        const r1 = await withTimeout(parser.getParsedAllUserDomainsFromTld(ownerPk, 'saga'), 8000, 'saga-parsed')
+        const r1 = await withTimeout(parser.getParsedAllUserDomainsFromTld(ownerPk, 'saga'), 8000, 'saga-1')
         saga = norm(r1 as any[], 'saga')
       } catch {
         await wait(600)
         try {
-          const r2 = await withTimeout(parser.getParsedAllUserDomainsFromTld(ownerPk, 'saga'), 8000, 'saga-parsed-2')
+          const r2 = await withTimeout(parser.getParsedAllUserDomainsFromTld(ownerPk, 'saga'), 8000, 'saga-2')
           saga = norm(r2 as any[], 'saga')
         } catch {}
       }
@@ -111,7 +112,6 @@ export function useUserDomains(owner?: PublicKey | null) {
       ordered.push(...skr.filter((n) => !isMain('skr', n)).map((n) => ({ name: n, tld: 'skr' as const })))
       ordered.push(...saga.filter((n) => !isMain('saga', n)).map((n) => ({ name: n, tld: 'saga' as const })))
 
-      // ✅ marquer le .sol (SNS fav) aussi comme primary
       if (solPrimaryFull) {
         const base = solPrimaryFull.replace(/\.sol$/i, '')
         ordered.push({ name: base, tld: 'sol', primary: true })
