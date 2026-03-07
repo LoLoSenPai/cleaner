@@ -14,10 +14,11 @@ import { useBurnTokens } from '@/hooks/use-burn-tokens'
 import { useUserDomains } from '@/hooks/use-user-domains'
 import { refreshPortfolio } from '@/utils/portfolio-cache'
 import { PublicKey } from '@solana/web3.js'
-import { useCallback, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { RefreshControl, ScrollView, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { AccountUiButtons } from './account-ui-buttons'
+
 
 type SelectItem = { mint: string; tokenAccount?: string }
 const CTA_HEIGHT = 56
@@ -25,10 +26,25 @@ const CTA_HEIGHT = 56
 export function AccountFeature() {
   const { account } = useWalletUi()
   const owner = account?.publicKey?.toBase58()
-  const [refreshing, setRefreshing] = useState(false)
-  const { data: dom } = useUserDomains(account?.publicKey)
-  const [confirmOpen, setConfirmOpen] = useState(false)
 
+  // --- Anti-crash: petite fenêtre de stabilisation après apparition de la pubkey
+  const [walletReady, setWalletReady] = useState(false)
+  useEffect(() => {
+    if (!account?.publicKey) {
+      setWalletReady(false)
+      return
+    }
+    const t = setTimeout(() => setWalletReady(true), 400) // 300–400ms suffit
+    return () => clearTimeout(t)
+  }, [account?.publicKey])
+
+  // --- Clé pour remonter proprement la vue quand le wallet change
+  const screenKey = useMemo(() => owner ?? 'no-wallet', [owner])
+
+  // --- Domains: ne démarre qu'une fois le wallet stabilisé
+  const { data: dom, isFetching, refetch: refetchDomains } = useUserDomains(account?.publicKey)
+
+  const [refreshing, setRefreshing] = useState(false)
   const invalidateBalance = useGetBalanceInvalidate({ address: account?.publicKey as PublicKey })
   const invalidateTokenAccounts = useGetTokenAccountsInvalidate({ address: account?.publicKey as PublicKey })
 
@@ -46,6 +62,19 @@ export function AccountFeature() {
     }
   }, [refreshing, owner, invalidateBalance, invalidateTokenAccounts])
 
+  // throttle 500ms pour éviter 2 refetchs quand focus + walletReady se déclenchent quasi ensemble
+  const lastKickRef = useRef(0)
+  const kickDomains = useCallback(() => {
+    const now = Date.now()
+    if (now - lastKickRef.current < 500) return
+    lastKickRef.current = now
+    refetchDomains()
+  }, [refetchDomains])
+
+  useEffect(() => {
+    if (walletReady && owner) kickDomains()
+  }, [walletReady, owner, kickDomains])
+
   const insets = useSafeAreaInsets()
   const [selected, setSelected] = useState<SelectItem[]>([])
   const selectedCount = selected.length
@@ -61,6 +90,7 @@ export function AccountFeature() {
   const { mutateAsync: burnTokens } = useBurnTokens()
   const [burnBusy, setBurnBusy] = useState(false)
 
+  const [confirmOpen, setConfirmOpen] = useState(false)
   const onBurnSelectedTokens = useCallback(() => {
     if (!selected.length || !account?.publicKey) return
     setConfirmOpen(true)
@@ -79,11 +109,7 @@ export function AccountFeature() {
         })),
       )
       setSelected([])
-      await Promise.all([
-        refreshPortfolio(owner!),
-        invalidateBalance(),
-        invalidateTokenAccounts(),
-      ])
+      await Promise.all([refreshPortfolio(owner!), invalidateBalance(), invalidateTokenAccounts()])
     } finally {
       setBurnBusy(false)
     }
@@ -92,21 +118,23 @@ export function AccountFeature() {
   return (
     <AppPage>
       {account ? (
-        <View style={{ flex: 1 }}>
+        <View key={screenKey} style={{ flex: 1 }}>
           <ScrollView
-            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => onRefresh()} />}
-            contentContainerStyle={{
-              paddingBottom: selectedCount > 0 ? CTA_HEIGHT + 16 : 0,
-            }}
-            scrollIndicatorInsets={{
-              bottom: selectedCount > 0 ? CTA_HEIGHT + 16 : 0,
-            }}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+            contentContainerStyle={{ paddingBottom: selectedCount > 0 ? CTA_HEIGHT + 16 : 0 }}
+            scrollIndicatorInsets={{ bottom: selectedCount > 0 ? CTA_HEIGHT + 16 : 0 }}
             contentInsetAdjustmentBehavior="never"
           >
             <AppView disableBg style={{ alignItems: 'center', gap: 4 }}>
+              {/* 👉 Balance et badges : toujours montés */}
               <AccountUiBalance address={account.publicKey} />
 
-              {/* badges */}
+              {walletReady && isFetching && !dom?.ordered?.length && (
+                <AppText style={{ opacity: 0.6, fontSize: 12, marginTop: 4 }}>
+                  Resolving domains…
+                </AppText>
+              )}
+
               {!!dom?.ordered?.length && (
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, justifyContent: 'center', marginTop: 6 }}>
                   {dom.ordered.map((d) => {
@@ -134,14 +162,7 @@ export function AccountFeature() {
                     return (
                       <View
                         key={`${d.tld}:${d.name}`}
-                        style={{
-                          paddingHorizontal: 8,
-                          paddingVertical: 2,
-                          borderRadius: 999,
-                          borderWidth: 1,
-                          backgroundColor: bg,
-                          borderColor: bd,
-                        }}
+                        style={{ paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, borderWidth: 1, backgroundColor: bg, borderColor: bd }}
                       >
                         <AppText style={{ fontSize: 12, color: '#fff' }}>{label}</AppText>
                       </View>
@@ -155,16 +176,16 @@ export function AccountFeature() {
               <AccountUiButtons />
             </AppView>
 
-            <AppView
-              disableBg
-              style={{ marginTop: 0, alignItems: 'center', gap: 8, width: '100%', paddingBottom: 0 }}
-            >
-              <AccountUiTokenAccounts
-                address={account.publicKey}
-                selectable
-                selected={selected}
-                onToggleSelect={toggleSelect}
-              />
+            <AppView disableBg style={{ marginTop: 0, alignItems: 'center', gap: 8, width: '100%', paddingBottom: 0 }}>
+              {/* 👉 On ne monte la liste lourde qu’une fois le wallet stabilisé */}
+              {walletReady && (
+                <AccountUiTokenAccounts
+                  address={account.publicKey}
+                  selectable
+                  selected={selected}
+                  onToggleSelect={toggleSelect}
+                />
+              )}
             </AppView>
           </ScrollView>
 

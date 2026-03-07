@@ -52,16 +52,22 @@ async function getAnsMainDomain(conn: Connection, owner: PublicKey) {
   }
 }
 
-export function useUserDomains(owner?: PublicKey | null) {
+export function useUserDomains(owner?: PublicKey | null): {
+  data: UserDomains
+  status: 'idle' | 'pending' | 'success' | 'error'
+  isFetching: boolean
+  refetch: () => void
+} {
   const connection = useConnection()
   const ownerKey = owner?.toBase58()
 
-  return useQuery<UserDomains, Error>({
+  const q = useQuery<UserDomains, Error>({
     enabled: !!ownerKey,
-    // 🔑 nouvelle clé pour invalider les caches précédents
     queryKey: ['user-domains-v2', connection.rpcEndpoint, ownerKey],
     initialData: emptyData,
-    staleTime: 30_000,
+    placeholderData: (prev) => prev ?? emptyData,
+    staleTime: 600_000, // 10 min pour éviter les refetchs trop fréquents
+    gcTime: 900_000,
     refetchOnMount: 'always',
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
@@ -120,4 +126,13 @@ export function useUserDomains(owner?: PublicKey | null) {
       return { skr, saga, solPrimary: solPrimaryFull, ordered }
     },
   })
+
+  // Harmonise avec ce que ton composant attend
+  const isFetching = q.fetchStatus !== 'idle'
+  return {
+    data: q.data ?? emptyData,
+    status: q.status as 'idle' | 'pending' | 'success' | 'error',
+    isFetching,
+    refetch: q.refetch,
+  }
 }
